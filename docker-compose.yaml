@@ -1,0 +1,66 @@
+services:
+  api:
+    build:
+      context: ./src
+      dockerfile: ../.docker/node/Dockerfile
+    container_name: autobe-api
+    working_dir: /usr/src/app
+    env_file:
+      - .env  # attenzione: questo path è relativo alla `build.context` (./src), quindi devi salire
+    volumes:
+      - ./src:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=autobe
+      - DB_USERNAME=autobeuser
+      - DB_PASSWORD=secret
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    command: npm run dev
+    restart: unless-stopped
+    networks:
+      - autobe-network
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: autobe-postgres
+    ports:
+      - "5444:5432"
+    environment:
+      - POSTGRES_USER=autobeuser
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=autobe
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./.docker/postgres/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    networks:
+      - autobe-network
+
+  redis:
+    image: redis:alpine
+    container_name: autobe-redis
+    ports:
+      - "6389:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - autobe-network
+
+networks:
+  autobe-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,10 @@
+{
+  "development": {
+    "username": "autobeuser",
+    "password": "secret",
+    "database": "autobe",
+    "host": "postgres",
+    "port": 5432,
+    "dialect": "postgres"
+  }
+}
