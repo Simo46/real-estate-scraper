@@ -1,0 +1,13 @@
+{
+  "name": "real-estate-scraper",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "frontend",
+    "shared"
+  ],
+  "scripts": {
+    "dev:api": "pnpm --filter api-gateway dev",
+    "dev:frontend": "pnpm --filter frontend dev"
+  }
+}

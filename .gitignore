@@ -1,0 +1,52 @@
+# Node.js dependencies
+node_modules/
+**/node_modules/
+
+# Python virtual environments
+.venv/
+venv/
+__pycache__/
+
+# Environment files (but NOT .env.example)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# MacOS system files
+.DS_Store
+
+# Log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore coverage reports
+coverage/
+
+# Uncomment the following lines if you want to ignore lock files (not recommended for most teams)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Ignore local VSCode settings
+.vscode/
+
+# Build output/dist
+/dist/
+**/dist/
+/build/
+**/build/
+
+# Misc
+*.tgz
+
+# Docker
+*.pid
+
+# Ignore database and data volumes
+postgres_data/
+mongo_data/
+redis_data/
+ollama_data/

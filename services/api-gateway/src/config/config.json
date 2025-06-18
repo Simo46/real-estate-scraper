@@ -1,0 +1,26 @@
+{
+  "development": {
+    "username": "app_user",
+    "password": "app_password",
+    "database": "real_estate",
+    "host": "postgres",
+    "port": 5432,
+    "dialect": "postgres"
+  },
+  "test": {
+    "username": "app_user",
+    "password": "app_password",
+    "database": "real_estate_test",
+    "host": "postgres",
+    "port": 5432,
+    "dialect": "postgres"
+  },
+  "production": {
+    "username": "app_user",
+    "password": "app_password",
+    "database": "real_estate",
+    "host": "postgres",
+    "port": 5432,
+    "dialect": "postgres"
+  }
+}
