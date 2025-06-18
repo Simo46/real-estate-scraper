@@ -47,9 +47,15 @@ TABLES=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USERNAME" -d "$DB_
 if [ -z "$TABLES" ]; then
   echo "[api-gateway] Running migrations..."
   npx sequelize-cli db:migrate
-  npx sequelize-cli db:seed:all || true
+  # npx sequelize-cli db:seed:all || true
+  if ! npx sequelize-cli db:seed:all --seeders-path src/seeders/base; then
+    echo "[api-gateway] ❌ Base seeders failed" >&2
+  fi
 else
   echo "[api-gateway] Tables already exist, skipping migrations."
+  if ! npx sequelize-cli db:seed:all --seeders-path src/seeders/base; then
+    echo "[api-gateway] ❌ Base seeders failed" >&2
+  fi
 fi
 
 # Avvia il servizio Node.js

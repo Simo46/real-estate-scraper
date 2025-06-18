@@ -1,6 +1,6 @@
 'use strict';
 
-const policyBuilder = require('../services/policyBuilder');
+const policyBuilder = require('../../services/policyBuilder');
 
 module.exports = {
   async up(queryInterface, Sequelize) {

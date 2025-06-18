@@ -23,9 +23,9 @@ command -v docker >/dev/null 2>&1 || {
 echo -e "${GREEN}✅ Dependencies check passed${NC}"
 
 # Setup environment file
-if [ ! -f .env ]; then
+if [ ! -f services/api-gateway/.env ]; then
   echo -e "${YELLOW}📝 Creating .env file from template...${NC}"
-  cp .env.example .env
+  cp services/api-gateway/.env.example services/api-gateway/.env
   echo -e "${YELLOW}⚠️  Please edit .env file with your configuration if needed${NC}"
 else
   echo -e "${GREEN}✅ .env file already exists${NC}"
@@ -35,55 +35,56 @@ fi
 echo -e "${YELLOW}🐳 Building and starting Docker services...${NC}"
 docker compose up -d --build
 
+# Wait until a container becomes healthy
+wait_for_healthy() {
+  local container_name=$1
+  local timeout_seconds=$2
+  local waited=0
+
+  echo -e "${YELLOW}⏳ Waiting for ${container_name} to become healthy...${NC}"
+  while [[ $(docker inspect --format='{{json .State.Health.Status}}' "$container_name") != "\"healthy\"" ]]; do
+    sleep 2
+    waited=$((waited + 2))
+    if [ "$waited" -ge "$timeout_seconds" ]; then
+      echo -e "${RED}❌ ${container_name} failed to become healthy within ${timeout_seconds} seconds${NC}"
+      docker compose logs "$container_name"
+      exit 1
+    fi
+  done
+
+  echo -e "${GREEN}✅ ${container_name} is healthy${NC}"
+}
+
+# Get Containers IDs
+POSTGRES_CONTAINER=$(docker compose ps -q postgres)
+API_CONTAINER=$(docker compose ps -q api-gateway)
 # Wait for PostgreSQL to be ready
-echo -e "${YELLOW}⏳ Waiting for PostgreSQL to be ready...${NC}"
-timeout 90 bash -c 'until docker compose exec postgres pg_isready -U postgres -d real_estate; do sleep 2; done'
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ PostgreSQL failed to start within 90 seconds${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
-
+wait_for_healthy "$POSTGRES_CONTAINER" 60
+echo -e "${GREEN}✅ Postgres is ready${NC}"
 # Wait for API Gateway to be ready
-echo -e "${YELLOW}⏳ Waiting for API Gateway to be ready...${NC}"
-timeout 60 bash -c 'until curl -f http://localhost:3000/health >/dev/null 2>&1; do sleep 2; done'
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ API Gateway failed to start within 60 seconds${NC}"
-    echo -e "${YELLOW}📋 Checking logs...${NC}"
-    docker compose logs api-gateway
-    exit 1
-fi
-
+wait_for_healthy "$API_CONTAINER" 60
 echo -e "${GREEN}✅ API Gateway is ready${NC}"
 
-# Run migrations
-echo -e "${YELLOW}🔄 Running database migrations...${NC}"
-docker compose exec api-gateway npx sequelize-cli db:migrate
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Database migrations failed${NC}"
-    exit 1
+if docker compose logs --no-color --since 30s api-gateway | grep -q "\[api-gateway\] ❌ Base seeders failed"; then
+  echo -e "${RED}⚠️  Warning: Base seeders failed. Check api-gateway logs for details.${NC}"
+else
+  echo -e "${GREEN}✅ Base seeders completed successfully${NC}"
+  # Ask about dev seeders
+  echo -e "${YELLOW}🌱 Do you want to run database DEV seeders? (y/n)${NC}"
+  read -p "" -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+      echo -e "${YELLOW}🌱 Running database seeders...${NC}"
+      docker compose exec api-gateway npx sequelize-cli db:seed:all --seeders-path src/seeders/dev
+      
+      if [ $? -ne 0 ]; then
+          echo -e "${RED}❌ Database seeders failed${NC}"
+      else
+          echo -e "${GREEN}✅ Database seeders completed${NC}"
+      fi
+  fi
 fi
 
-echo -e "${GREEN}✅ Database migrations completed${NC}"
-
-# Ask about seeders
-echo -e "${YELLOW}🌱 Do you want to run database seeders? (y/n)${NC}"
-read -p "" -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${YELLOW}🌱 Running database seeders...${NC}"
-    docker compose exec api-gateway npx sequelize-cli db:seed:all
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ Database seeders failed${NC}"
-    else
-        echo -e "${GREEN}✅ Database seeders completed${NC}"
-    fi
-fi
 
 echo -e "${BLUE}===========================================================${NC}"
 echo -e "${GREEN}✅ Setup completed successfully!${NC}"
