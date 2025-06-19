@@ -2,19 +2,23 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: real_estate
+      POSTGRES_DB: ${DB_DATABASE:-real_estate}
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      # Ottimizzazioni performance per dev
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/databases/postgres/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "5444:5432"
+      - "${POSTGRES_PORT:-5444}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d real_estate"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${DB_DATABASE:-real_estate}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
   mongodb:
     image: mongo:8
@@ -24,57 +28,111 @@ services:
     volumes:
       - mongo_data:/data/db
     ports:
-      - "27018:27017"
+      - "${MONGO_PORT:-27018}:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
   redis:
     image: redis:8-alpine
     volumes:
       - redis_data:/data
     ports:
-      - "6389:6379"
+      - "${REDIS_PORT:-6389}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    # Configurazione Redis ottimizzata per dev
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
 
   ollama:
-    build: ./services/nlp-service
+    build: 
+      context: ./services/nlp-service
     volumes:
       - ollama_data:/root/.ollama
     ports:
-      - "11434:11434"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+      - "${OLLAMA_PORT:-11434}:11434"
+    environment:
+      # Evita problemi DNS
+      OLLAMA_HOST: 0.0.0.0
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: ${OLLAMA_MEMORY_LIMIT:-8G}
         reservations:
-          memory: 4G
+          memory: ${OLLAMA_MEMORY_RESERVATION:-4G}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s  # Tempo di attesa prima di iniziare l'healthcheck
+      start_period: 60s
+    restart: unless-stopped
 
   api-gateway:
-    build: ./services/api-gateway
+    build:
+      context: ./services/api-gateway
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3000}:3000"
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://app_user:app_password@postgres:5432/real_estate
-      - REDIS_URL=redis://redis:6379
-      - MONGO_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-secret}@mongodb:27017
-      - OLLAMA_URL=http://ollama:11434
+      # ===== DEVELOPMENT SETTINGS =====
+      - NODE_ENV=${NODE_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - PORT=${API_PORT:-3000}
+      
+      # ===== DATABASE CREDENTIALS =====
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_DATABASE=${DB_DATABASE:-real_estate}
+      - DB_USERNAME=${DB_USERNAME:-app_user}
+      - DB_PASSWORD=${DB_PASSWORD:-app_password}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secret}
+      
+      # ===== AUTH & SECURITY =====
+      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev_refresh_secret}
+      - JWT_PRE_AUTH_SECRET=${JWT_PRE_AUTH_SECRET:-dev_pre_auth_secret}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
+      - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
+      - JWT_PRE_AUTH_EXPIRES_IN=${JWT_PRE_AUTH_EXPIRES_IN:-2m}
+      
+      # ===== EXTERNAL SERVICES =====
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT_INTERNAL:-6379}
+      - REDIS_URL=redis://${REDIS_HOST:-redis}:${REDIS_PORT_INTERNAL:-6379}
+      
+      - MONGO_HOST=${MONGO_HOST:-mongodb}
+      - MONGO_PORT=${MONGO_PORT_INTERNAL:-27017}
+      - MONGO_USERNAME=${MONGO_USERNAME:-admin}
+      - MONGO_PASSWORD=${MONGO_PASSWORD:-secret}
+      - MONGO_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-secret}@${MONGO_HOST:-mongodb}:${MONGO_PORT_INTERNAL:-27017}
+      
+      - OLLAMA_HOST=${OLLAMA_HOST:-ollama}
+      - OLLAMA_PORT=${OLLAMA_PORT_INTERNAL:-11434}
+      - OLLAMA_URL=http://${OLLAMA_HOST:-ollama}:${OLLAMA_PORT_INTERNAL:-11434}
+      
+      # ===== FEATURE FLAGS =====
+      - ENABLE_REGISTRATION=${ENABLE_REGISTRATION:-true}
+      - ENABLE_EMAIL_VERIFICATION=${ENABLE_EMAIL_VERIFICATION:-false}
+      - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
+      - ENABLE_SCRAPING=${ENABLE_SCRAPING:-true}
+      - ENABLE_AI_PROCESSING=${ENABLE_AI_PROCESSING:-true}
+      
+      # ===== MONITORING =====
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
+      - DEBUG_SQL=${DEBUG_SQL:-false}
+      
+      # ===== LEGACY DATABASE_URL (backward compatibility) =====
+      - DATABASE_URL=postgresql://${DB_USERNAME:-app_user}:${DB_PASSWORD:-app_password}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_DATABASE:-real_estate}
+      
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,13 +147,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    restart: unless-stopped
     volumes:
+      # Hot reload per development
       - ./services/api-gateway:/app
-      - /app/node_modules
-      - ./services/api-gateway/.env:/app/.env:ro
+      - /app/node_modules  # Prevents node_modules override
+      # REMOVE: Non serve più montare .env specifico
+      # - ./services/api-gateway/.env:/app/.env:ro
 
 volumes:
   postgres_data:
+    name: real_estate_postgres_data
   mongo_data:
+    name: real_estate_mongo_data
   redis_data:
+    name: real_estate_redis_data
   ollama_data:
+    name: real_estate_ollama_data
+
+networks:
+  default:
+    name: real_estate_network
