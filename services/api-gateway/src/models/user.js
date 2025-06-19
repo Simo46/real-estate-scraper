@@ -14,14 +14,6 @@ module.exports = (sequelize, DataTypes) => {
         as: 'tenant' 
       });
       
-      // Relazione con filiale
-      if (models.Filiale) {
-        User.belongsTo(models.Filiale, { 
-          foreignKey: 'filiale_id', 
-          as: 'filiale' 
-        });
-      }
-      
       // Relazione molti-a-molti con Role attraverso UserRole
       User.belongsToMany(models.Role, {
         through: 'user_roles',
@@ -128,19 +120,12 @@ module.exports = (sequelize, DataTypes) => {
         }
       }
     },
-    avatar: DataTypes.STRING,
-    phone: DataTypes.STRING,
-    job_title: DataTypes.STRING,
     active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
     },
     settings: DataTypes.JSONB,
-    remember_token: DataTypes.STRING,
-    filiale_id: {
-      type: DataTypes.UUID,
-      allowNull: true
-    }
+    remember_token: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'User',

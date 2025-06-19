@@ -18,15 +18,7 @@ const importModels = [
   'role',        
   'ability',     
   'user-role',
-  'user-ability', 
-  'filiale',
-  'edificio',
-  'piano',
-  'locale',
-  'asset',
-  'attrezzatura',
-  'strumento-di-misura',
-  'impianto-tecnologico',
+  'user-ability'
 ];
 
 // Modelli raggruppati

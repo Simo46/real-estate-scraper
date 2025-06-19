@@ -48,6 +48,10 @@ module.exports = {
         type: Sequelize.JSONB,
         allowNull: true
       },
+      remember_token: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
       // Audit fields
       created_by: { 
         type: Sequelize.UUID, 
