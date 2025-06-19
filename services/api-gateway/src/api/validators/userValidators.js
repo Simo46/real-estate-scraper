@@ -31,10 +31,6 @@ const userValidators = {
       .matches(/[A-Z]/).withMessage('La password deve contenere almeno una lettera maiuscola')
       .matches(/[0-9]/).withMessage('La password deve contenere almeno un numero'),
     
-    body('filiale_id')
-      .optional()
-      .isUUID().withMessage('L\'ID della filiale non è valido'),
-    
     body('roles')
       .optional()
       .isArray().withMessage('I ruoli devono essere un array'),
@@ -49,19 +45,7 @@ const userValidators = {
     
     body('active')
       .optional()
-      .isBoolean().withMessage('Lo stato attivo deve essere un booleano'),
-    
-    body('phone')
-      .optional()
-      .isString().withMessage('Il telefono deve essere una stringa'),
-    
-    body('job_title')
-      .optional()
-      .isString().withMessage('La posizione lavorativa deve essere una stringa'),
-    
-    body('avatar')
-      .optional()
-      .isString().withMessage('L\'avatar deve essere una stringa')
+      .isBoolean().withMessage('Lo stato attivo deve essere un booleano')
   ],
 
   /**
@@ -89,10 +73,6 @@ const userValidators = {
       .matches(/[A-Z]/).withMessage('La password deve contenere almeno una lettera maiuscola')
       .matches(/[0-9]/).withMessage('La password deve contenere almeno un numero'),
     
-    body('filiale_id')
-      .optional()
-      .isUUID().withMessage('L\'ID della filiale non è valido'),
-    
     body('roles')
       .optional()
       .isArray().withMessage('I ruoli devono essere un array'),
@@ -107,19 +87,7 @@ const userValidators = {
     
     body('active')
       .optional()
-      .isBoolean().withMessage('Lo stato attivo deve essere un booleano'),
-    
-    body('phone')
-      .optional()
-      .isString().withMessage('Il telefono deve essere una stringa'),
-    
-    body('job_title')
-      .optional()
-      .isString().withMessage('La posizione lavorativa deve essere una stringa'),
-    
-    body('avatar')
-      .optional()
-      .isString().withMessage('L\'avatar deve essere una stringa')
+      .isBoolean().withMessage('Lo stato attivo deve essere un booleano')
   ],
 
   /**
