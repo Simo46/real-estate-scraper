@@ -46,7 +46,7 @@ class AuthController {
         return next(AppError.validation('Errori di validazione', errors.array()));
       }
 
-      const { name, email, username, password, filiale_id } = req.body;
+      const { name, email, username, password } = req.body;
 
       // Verifica se l'utente esiste già
       const existingUser = await User.findOne({
@@ -74,7 +74,6 @@ class AuthController {
           username,
           password, // Hash generato automaticamente tramite hook
           tenant_id: req.tenantId,
-          filiale_id,
           active: true
         }, { 
           transaction,
@@ -911,7 +910,6 @@ class AuthController {
             username: user.username,
             email: user.email,
             tenant_id: user.tenant_id,
-            filiale_id: user.filiale_id,
             active_role: {
               id: activeRole.id,
               name: activeRole.name,

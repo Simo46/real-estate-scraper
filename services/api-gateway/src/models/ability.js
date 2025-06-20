@@ -12,6 +12,16 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'role_id',
         as: 'role'
       });
+
+      Ability.belongsTo(models.User, {
+        foreignKey: 'created_by',
+        as: 'creator'
+      });
+      
+      Ability.belongsTo(models.User, {
+        foreignKey: 'updated_by',
+        as: 'updater'
+      });
     }
   }
   
@@ -19,7 +29,8 @@ module.exports = (sequelize, DataTypes) => {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      primaryKey: true,
+      allowNull: false  
     },
     role_id: {
       type: DataTypes.UUID,
@@ -31,25 +42,11 @@ module.exports = (sequelize, DataTypes) => {
     },
     action: {
       type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: {
-          msg: 'L\'azione è obbligatoria'
-        },
-        isIn: {
-          args: [['create', 'read', 'update', 'delete', 'manage']],
-          msg: 'L\'azione deve essere una di: create, read, update, delete, manage'
-        }
-      }
+      allowNull: false
     },
     subject: {
       type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: {
-          msg: 'Il soggetto è obbligatorio'
-        }
-      }
+      allowNull: false
     },
     conditions: {
       type: DataTypes.JSONB,
@@ -64,32 +61,39 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false
     },
-    // NUOVO: Campo priority per coerenza con user_abilities
     priority: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 1,
-      validate: {
-        min: {
-          args: [1],
-          msg: 'La priorità deve essere almeno 1'
-        },
-        max: {
-          args: [100],
-          msg: 'La priorità non può superare 100'
-        }
-      }
+      defaultValue: 1  
     },
     reason: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+   
+    created_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
+    },
+    updated_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
     }
   }, {
     sequelize,
     modelName: 'Ability',
     tableName: 'abilities',
     underscored: true,
-    paranoid: true, // Soft delete
+    paranoid: true,     // Soft delete
+    timestamps: true    
   });
   
   return Ability;

@@ -17,6 +17,16 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'role_id',
         as: 'role'
       });
+
+      UserRole.belongsTo(models.User, {
+        foreignKey: 'created_by',
+        as: 'creator'
+      });
+      
+      UserRole.belongsTo(models.User, {
+        foreignKey: 'updated_by',
+        as: 'updater'
+      });
     }
   }
   
@@ -24,7 +34,8 @@ module.exports = (sequelize, DataTypes) => {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      primaryKey: true,
+      allowNull: false
     },
     user_id: {
       type: DataTypes.UUID,
@@ -41,19 +52,30 @@ module.exports = (sequelize, DataTypes) => {
         model: 'roles',
         key: 'id'
       }
+    },
+    created_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
+    },
+    updated_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
     }
   }, {
     sequelize,
     modelName: 'UserRole',
     tableName: 'user_roles',
     underscored: true,
-    paranoid: true, // Soft delete
-    indexes: [
-      {
-        unique: true,
-        fields: ['user_id', 'role_id']
-      }
-    ]
+    paranoid: true,     // Soft delete
+    timestamps: true  
   });
   
   return UserRole;

@@ -4,19 +4,19 @@ const { body } = require('express-validator');
 
 /**
  * Validazioni per le operazioni sui permessi individuali degli utenti
- * AGGIORNATO: Supporto per role_context_id
  */
 const userAbilityValidators = {
   /**
-   * AGGIORNATO: Validazioni per la creazione di un permesso individuale
+   * Validazioni per la creazione di un permesso individuale
    */
   createUserAbility: [
     body('action')
       .notEmpty().withMessage('L\'azione è obbligatoria')
-      .isIn(['create', 'read', 'update', 'delete', 'manage']).withMessage('L\'azione deve essere una di: create, read, update, delete, manage'),
+      .isLength({ min: 1 }).withMessage('L\'azione deve esistere'),
     
     body('subject')
-      .notEmpty().withMessage('Il soggetto è obbligatorio'),
+      .notEmpty().withMessage('Il soggetto è obbligatorio')
+      .isLength({ min: 1, max: 255 }).withMessage('Il soggetto deve essere compreso tra 1 e 255 caratteri'),
     
     body('conditions')
       .optional()
@@ -24,26 +24,30 @@ const userAbilityValidators = {
     
     body('fields')
       .optional()
-      .isArray().withMessage('I campi devono essere un array'),
+      .isArray().withMessage('I campi devono essere un array'), 
     
     body('fields.*')
       .optional()
-      .isString().withMessage('Ogni campo deve essere una stringa'),
+      .isString().withMessage('Ogni campo deve essere una stringa')
+      .isLength({ min: 1, max: 100 }).withMessage('Ogni campo deve essere compreso tra 1 e 100 caratteri'), 
     
     body('inverted')
       .optional()
-      .isBoolean().withMessage('Il valore deve essere un booleano'),
+      .isBoolean().withMessage('Il valore deve essere un booleano')
+      .toBoolean(), 
     
     body('priority')
       .optional()
-      .isInt({ min: 1, max: 100 }).withMessage('La priorità deve essere un numero intero tra 1 e 100'),
+      .isInt({ min: 1, max: 100 }).withMessage('La priorità deve essere un numero intero tra 1 e 100')
+      .toInt(), 
     
     body('reason')
       .optional()
       .isString().withMessage('Il motivo deve essere una stringa')
-      .isLength({ max: 255 }).withMessage('Il motivo non può superare 255 caratteri'),
+      .isLength({ max: 255 }).withMessage('Il motivo non può superare 255 caratteri')
+      .trim(), 
     
-    body('expiresAt')
+    body('expires_at') 
       .optional()
       .isISO8601().withMessage('La data di scadenza deve essere in formato ISO8601')
       .custom((value) => {
@@ -53,38 +57,13 @@ const userAbilityValidators = {
         return true;
       }),
 
-    // NUOVO: Validazione per role_context_id
     body('role_context_id')
       .optional()
-      .isUUID().withMessage('L\'ID del ruolo di contesto deve essere un UUID valido')
-      .custom(async (value, { req }) => {
-        if (!value) return true; // Se null/undefined, è valido (permesso globale)
-        
-        // Verifica che l'utente target abbia effettivamente questo ruolo
-        const targetUserId = req.params.userId;
-        if (!targetUserId) {
-          throw new Error('Impossibile validare role_context_id senza utente target');
-        }
-        
-        const { UserRole } = require('../../models');
-        const hasRole = await UserRole.findOne({
-          where: {
-            user_id: targetUserId,
-            role_id: value,
-            tenant_id: req.tenantId
-          }
-        });
-        
-        if (!hasRole) {
-          throw new Error('L\'utente non ha il ruolo specificato come contesto');
-        }
-        
-        return true;
-      })
+      .isUUID(4).withMessage('L\'ID del ruolo di contesto deve essere un UUID valido') 
   ],
 
   /**
-   * AGGIORNATO: Validazioni per l'aggiornamento di un permesso individuale
+   * Validazioni per l'aggiornamento di un permesso individuale
    */
   updateUserAbility: [
     body('action')
@@ -93,7 +72,8 @@ const userAbilityValidators = {
     
     body('subject')
       .optional()
-      .notEmpty().withMessage('Il soggetto non può essere vuoto'),
+      .notEmpty().withMessage('Il soggetto non può essere vuoto')
+      .isLength({ min: 1, max: 255 }).withMessage('Il soggetto deve essere compreso tra 1 e 255 caratteri'),
     
     body('conditions')
       .optional()
@@ -101,67 +81,57 @@ const userAbilityValidators = {
     
     body('fields')
       .optional()
-      .isArray().withMessage('I campi devono essere un array'),
+      .isArray({ max: 20 }).withMessage('I campi devono essere un array (massimo 20 elementi)'),
     
     body('fields.*')
       .optional()
-      .isString().withMessage('Ogni campo deve essere una stringa'),
+      .isString().withMessage('Ogni campo deve essere una stringa')
+      .isLength({ min: 1, max: 100 }).withMessage('Ogni campo deve essere compreso tra 1 e 100 caratteri'),
     
     body('inverted')
       .optional()
-      .isBoolean().withMessage('Il valore deve essere un booleano'),
+      .isBoolean().withMessage('Il valore deve essere un booleano')
+      .toBoolean(),
     
     body('priority')
       .optional()
-      .isInt({ min: 1, max: 100 }).withMessage('La priorità deve essere un numero intero tra 1 e 100'),
+      .isInt({ min: 1, max: 100 }).withMessage('La priorità deve essere un numero intero tra 1 e 100')
+      .toInt(),
     
     body('reason')
       .optional()
       .isString().withMessage('Il motivo deve essere una stringa')
-      .isLength({ max: 255 }).withMessage('Il motivo non può superare 255 caratteri'),
+      .isLength({ max: 255 }).withMessage('Il motivo non può superare 255 caratteri')
+      .trim(),
     
-    body('expiresAt')
+    body('expires_at')
       .optional()
-      .isISO8601().withMessage('La data di scadenza deve essere in formato ISO8601')
       .custom((value) => {
+        // Permetti null per rimuovere scadenza
+        if (value === null) return true;
+        
+        // Se non è null, deve essere una data ISO valida e futura
+        if (value && !new Date(value).toISOString()) {
+          throw new Error('La data di scadenza deve essere in formato ISO8601');
+        }
+        
         if (value && new Date(value) <= new Date()) {
           throw new Error('La data di scadenza deve essere futura');
         }
+        
         return true;
       }),
 
-    // NUOVO: Validazione per role_context_id nell'aggiornamento
     body('role_context_id')
       .optional()
-      .custom(async (value, { req }) => {
-        // Se value è null o undefined, è valido (rimuove il contesto ruolo)
+      .custom((value) => {
+        // Permetti null per rimuovere il contesto
         if (value === null || value === undefined) return true;
         
-        // Se è una stringa, deve essere un UUID valido
-        if (typeof value === 'string' && value.length > 0) {
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-          if (!uuidRegex.test(value)) {
-            throw new Error('L\'ID del ruolo di contesto deve essere un UUID valido');
-          }
-          
-          // Verifica che l'utente target abbia questo ruolo
-          const targetUserId = req.params.userId;
-          if (!targetUserId) {
-            throw new Error('Impossibile validare role_context_id senza utente target');
-          }
-          
-          const { UserRole } = require('../../models');
-          const hasRole = await UserRole.findOne({
-            where: {
-              user_id: targetUserId,
-              role_id: value,
-              tenant_id: req.tenantId
-            }
-          });
-          
-          if (!hasRole) {
-            throw new Error('L\'utente non ha il ruolo specificato come contesto');
-          }
+        // Se specificato, deve essere un UUID valido
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (typeof value === 'string' && value.length > 0 && !uuidRegex.test(value)) {
+          throw new Error('L\'ID del ruolo di contesto deve essere un UUID valido');
         }
         
         return true;
@@ -169,40 +139,57 @@ const userAbilityValidators = {
   ],
 
   /**
-   * NUOVO: Validazione specifica per operazioni bulk sui permessi con contesto ruolo
+   * Validazione per operazioni bulk sui permessi
    */
   bulkUpdateUserAbilities: [
     body('abilities')
-      .isArray().withMessage('Le abilities devono essere un array')
-      .notEmpty().withMessage('Almeno una ability deve essere specificata'),
+      .isArray({ min: 1, max: 50 }).withMessage('Le abilities devono essere un array con almeno 1 elemento (massimo 50)'), // ✅ MIGLIORATO: Limiti array
     
     body('abilities.*.action')
       .notEmpty().withMessage('L\'azione è obbligatoria per ogni ability')
       .isIn(['create', 'read', 'update', 'delete', 'manage']).withMessage('L\'azione deve essere una di: create, read, update, delete, manage'),
     
     body('abilities.*.subject')
-      .notEmpty().withMessage('Il soggetto è obbligatorio per ogni ability'),
+      .notEmpty().withMessage('Il soggetto è obbligatorio per ogni ability')
+      .isLength({ min: 1, max: 255 }).withMessage('Il soggetto deve essere compreso tra 1 e 255 caratteri'),
     
     body('abilities.*.role_context_id')
       .optional()
-      .isUUID().withMessage('L\'ID del ruolo di contesto deve essere un UUID valido'),
+      .isUUID(4).withMessage('L\'ID del ruolo di contesto deve essere un UUID valido'),
     
     body('abilities.*.priority')
       .optional()
       .isInt({ min: 1, max: 100 }).withMessage('La priorità deve essere un numero intero tra 1 e 100')
+      .toInt(),
+      
+    body('abilities.*.expires_at')
+      .optional()
+      .isISO8601().withMessage('La data di scadenza deve essere in formato ISO8601')
   ],
 
   /**
-   * NUOVO: Validazione per query con filtro ruolo
+   * Validazione per query con filtro ruolo
    */
   queryByRoleContext: [
     body('role_id')
       .optional()
-      .isUUID().withMessage('L\'ID del ruolo deve essere un UUID valido'),
+      .isUUID(4).withMessage('L\'ID del ruolo deve essere un UUID valido'),
     
     body('include_global')
       .optional()
       .isBoolean().withMessage('include_global deve essere un valore booleano')
+      .toBoolean(),
+      
+    // ✅ AGGIUNTO: Validazioni per filtri aggiuntivi
+    body('filters.active_only')
+      .optional()
+      .isBoolean().withMessage('active_only deve essere un valore booleano')
+      .toBoolean(),
+      
+    body('filters.not_expired')
+      .optional()
+      .isBoolean().withMessage('not_expired deve essere un valore booleano')
+      .toBoolean()
   ]
 };
 

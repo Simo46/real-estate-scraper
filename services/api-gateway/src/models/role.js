@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       // Relazione molti-a-molti con User attraverso UserRole
       Role.belongsToMany(models.User, {
-        through: 'user_roles',
+        through: models.UserRole,
         foreignKey: 'role_id',
         otherKey: 'user_id',
         as: 'users'
@@ -20,6 +20,24 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'role_id',
         as: 'abilities'
       });
+
+      Role.belongsTo(models.User, {
+        foreignKey: 'created_by',
+        as: 'creator'
+      });
+      
+      Role.belongsTo(models.User, {
+        foreignKey: 'updated_by',
+        as: 'updater'
+      });
+    }
+
+    // Metodo helper per verificare se ha una specifica ability
+    hasAbility(action, subject) {
+      if (!this.abilities) return false;
+      return this.abilities.some(ability => 
+        ability.action === action && ability.subject === subject
+      );
     }
   }
   
@@ -27,28 +45,56 @@ module.exports = (sequelize, DataTypes) => {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      primaryKey: true,
+      allowNull: false  
     },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
-      validate: {
-        notEmpty: {
-          msg: 'Il nome è obbligatorio'
-        }
-      }
+      unique: true
     },
     description: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    created_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
+    },
+    updated_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id'
+      }
     }
   }, {
     sequelize,
     modelName: 'Role',
     tableName: 'roles',
     underscored: true,
-    paranoid: true, // Soft delete
+    paranoid: true,     // Soft delete
+    timestamps: true,   
+    
+    scopes: {
+      withAbilities: {
+        include: [{
+          model: sequelize.models.Ability,
+          as: 'abilities'
+        }]
+      },
+      withUsers: {
+        include: [{
+          model: sequelize.models.User,
+          as: 'users'
+        }]
+      }
+    }
   });
   
   return Role;

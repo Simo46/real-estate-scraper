@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
         as: 'tenant'
       });
       
-      // NUOVO: Relazione con il ruolo di contesto (opzionale)
+      // Relazione con il ruolo di contesto (opzionale)
       UserAbility.belongsTo(models.Role, {
         foreignKey: 'role_context_id',
         as: 'roleContext'
@@ -48,7 +48,7 @@ module.exports = (sequelize, DataTypes) => {
     }
 
     /**
-     * NUOVO: Verifica se il permesso si applica al ruolo attivo
+     * Verifica se il permesso si applica al ruolo attivo
      * @param {string} activeRoleId - ID del ruolo attivo dell'utente
      * @returns {boolean} True se il permesso si applica
      */
@@ -61,7 +61,7 @@ module.exports = (sequelize, DataTypes) => {
     }
 
     /**
-     * NUOVO: Restituisce la priorità effettiva del permesso
+     * Restituisce la priorità effettiva del permesso
      * I permessi con contesto ruolo hanno priorità più alta di quelli globali
      * @returns {number} Priorità calcolata
      */
@@ -81,7 +81,8 @@ module.exports = (sequelize, DataTypes) => {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      primaryKey: true,
+      allowNull: false  
     },
     user_id: {
       type: DataTypes.UUID,
@@ -99,7 +100,6 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
-    // NUOVO: Ruolo di contesto (opzionale)
     role_context_id: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -110,22 +110,11 @@ module.exports = (sequelize, DataTypes) => {
     },
     action: {
       type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        isIn: {
-          args: [['create', 'read', 'update', 'delete', 'manage']],
-          msg: 'L\'azione deve essere una di: create, read, update, delete, manage'
-        }
-      }
+      allowNull: false
     },
     subject: {
       type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: {
-          msg: 'Il soggetto è obbligatorio'
-        }
-      }
+      allowNull: false
     },
     conditions: {
       type: DataTypes.JSONB,
@@ -143,17 +132,7 @@ module.exports = (sequelize, DataTypes) => {
     priority: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 10,
-      validate: {
-        min: {
-          args: [1],
-          msg: 'La priorità deve essere almeno 1'
-        },
-        max: {
-          args: [100],
-          msg: 'La priorità non può superare 100'
-        }
-      }
+      defaultValue: 10 
     },
     reason: {
       type: DataTypes.STRING,
@@ -161,19 +140,11 @@ module.exports = (sequelize, DataTypes) => {
     },
     expires_at: {
       type: DataTypes.DATE,
-      allowNull: true,
-      validate: {
-        isDate: {
-          msg: 'La data di scadenza deve essere una data valida'
-        },
-        isAfter: {
-          args: [new Date().toISOString().split('T')[0]], // Data attuale
-          msg: 'La data di scadenza deve essere futura'
-        }
-      }
+      allowNull: true
     },
     created_by: {
       type: DataTypes.UUID,
+      allowNull: true, 
       references: {
         model: 'users',
         key: 'id'
@@ -181,6 +152,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     updated_by: {
       type: DataTypes.UUID,
+      allowNull: true,  
       references: {
         model: 'users',
         key: 'id'
@@ -191,27 +163,8 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'UserAbility',
     tableName: 'user_abilities',
     underscored: true,
-    paranoid: true, // Soft delete
-    indexes: [
-      {
-        fields: ['user_id']
-      },
-      {
-        fields: ['tenant_id']
-      },
-      {
-        fields: ['action', 'subject']
-      },
-      {
-        fields: ['expires_at']
-      },
-      {
-        fields: ['role_context_id']
-      },
-      {
-        fields: ['user_id', 'role_context_id']
-      }
-    ]
+    paranoid: true,     // Soft delete
+    timestamps: true  
   });
   
   return UserAbility;

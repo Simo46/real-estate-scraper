@@ -79,11 +79,6 @@ class UserController {
             model: Role,
             as: 'roles',
             through: { attributes: [] }
-          },
-          {
-            model: sequelize.models.Filiale,
-            as: 'filiale',
-            attributes: ['id', 'code', 'description']
           }
         ],
         order: [[sort_by, sort_dir]],
@@ -155,11 +150,6 @@ class UserController {
             model: Role,
             as: 'roles',
             through: { attributes: [] }
-          },
-          {
-            model: sequelize.models.Filiale,
-            as: 'filiale',
-            attributes: ['id', 'code', 'description']
           }
         ]
       });
@@ -349,11 +339,6 @@ class UserController {
               model: Role,
               as: 'roles',
               through: { attributes: [] }
-            },
-            {
-              model: sequelize.models.Filiale,
-              as: 'filiale',
-              attributes: ['id', 'code', 'description']
             }
           ]
         });

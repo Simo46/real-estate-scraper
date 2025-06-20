@@ -3,8 +3,34 @@ const { Model, DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   class Tenant extends Model {
     static associate(models) {
-      // Definire le associazioni se necessario
-      // Es. Tenant.hasMany(models.User)
+      Tenant.hasMany(models.User, {
+        foreignKey: 'tenant_id',
+        as: 'users'
+      });
+      
+      Tenant.hasMany(models.UserAbility, {
+        foreignKey: 'tenant_id',
+        as: 'userAbilities'
+      });
+    }
+
+    isActive() {
+      return this.active;
+    }
+
+    // Metodo per ottenere setting specifico
+    getSetting(key, defaultValue = null) {
+      return this.settings && this.settings[key] !== undefined 
+        ? this.settings[key] 
+        : defaultValue;
+    }
+
+    // Metodo per impostare setting
+    setSetting(key, value) {
+      const settings = this.settings || {};
+      settings[key] = value;
+      this.settings = settings;
+      return this.save();
     }
   }
 
@@ -13,6 +39,7 @@ module.exports = (sequelize) => {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
+      allowNull: false 
     },
     name: {
       type: DataTypes.STRING,
@@ -30,6 +57,7 @@ module.exports = (sequelize) => {
     },
     active: {
       type: DataTypes.BOOLEAN,
+      allowNull: false, 
       defaultValue: true,
     },
     settings: {
@@ -40,8 +68,21 @@ module.exports = (sequelize) => {
     sequelize,
     modelName: 'Tenant',
     tableName: 'tenants',
-    paranoid: true, // Implementa soft delete
+    underscored: true,  
+    paranoid: true,       // Soft delete
     timestamps: true,
+    
+    scopes: {
+      active: {
+        where: { active: true }
+      },
+      withUsers: {
+        include: [{
+          model: sequelize.models.User,
+          as: 'users'
+        }]
+      }
+    }
   });
 
   return Tenant;
