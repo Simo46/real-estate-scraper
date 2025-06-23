@@ -516,7 +516,8 @@ module.exports = (sequelize, DataTypes) => {
                 id: {
                   [sequelize.Sequelize.Op.ne]: searchResult.id
                 }
-              }
+              },
+              validate: false
             }
           );
         }

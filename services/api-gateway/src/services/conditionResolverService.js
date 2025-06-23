@@ -43,7 +43,7 @@ class ConditionResolverService {
           continue;
         }
         
-        // Risoluzione standard per variabili
+        // Risoluzione standard per variabili (supporta sia $var che ${var})
         if (typeof obj[key] === 'string' && this.isVariable(obj[key])) {
           obj[key] = this.resolveVariable(obj[key], context);
         }
@@ -58,23 +58,42 @@ class ConditionResolverService {
   
   /**
    * Controlla se una stringa è una variabile
+   * Supporta sia $var che ${var} notation
    * @param {string} value - Valore da controllare
    * @returns {boolean} - True se è una variabile
    */
   isVariable(value) {
-    return typeof value === 'string' && value.startsWith('$');
+    if (typeof value !== 'string') {
+      return false;
+    }
+    
+    // Supporta sia $user.id che ${user.id}
+    return value.startsWith('$') || (value.startsWith('${') && value.endsWith('}'));
   }
   
   /**
    * Risolve una variabile nel contesto
+   * Supporta sia $user.id che ${user.id} notation
    * @param {string} variable - Variabile da risolvere
    * @param {Object} context - Contesto per la risoluzione
    * @returns {*} - Valore risolto
    */
   resolveVariable(variable, context) {
-    // Supporto per variabili nidificate come $user.settings.preference
-    if (variable.startsWith('$user.')) {
-      const path = variable.substring(6); // Rimuove '$user.'
+    let cleanVariable = variable;
+    
+    // Gestisce formato ${user.id}
+    if (variable.startsWith('${') && variable.endsWith('}')) {
+      cleanVariable = variable.slice(2, -1); // Rimuove ${ e }
+    }
+    
+    // Gestisce formato $user.id
+    if (cleanVariable.startsWith('$')) {
+      cleanVariable = cleanVariable.substring(1); // Rimuove $
+    }
+    
+    // Supporto per variabili nidificate come user.settings.preference
+    if (cleanVariable.startsWith('user.')) {
+      const path = cleanVariable.substring(5); // Rimuove 'user.'
       const resolvedValue = get(context, path);
       
       logger.debug(`Risoluzione variabile: ${variable} → ${JSON.stringify(resolvedValue)}`);
@@ -87,8 +106,15 @@ class ConditionResolverService {
       return null;
     }
     
-    // Altri tipi di variabili possono essere aggiunti qui
+    // Gestione diretta per 'user.id' → context.id
+    if (cleanVariable === 'user.id') {
+      const resolvedValue = context.id;
+      logger.debug(`Risoluzione variabile: ${variable} → ${JSON.stringify(resolvedValue)}`);
+      return resolvedValue;
+    }
     
+    // Altri tipi di variabili possono essere aggiunti qui
+    logger.warn(`Tipo di variabile non riconosciuto: ${variable}`);
     return variable;
   }
   

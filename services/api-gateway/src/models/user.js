@@ -89,6 +89,40 @@ module.exports = (sequelize, DataTypes) => {
       const ability = await abilityService.defineAbilityFor(this);
       return ability.can(action, subject, conditions);
     }
+
+    /**
+     * Ottiene il tipo utente basato sui ruoli
+     * @returns {string} - 'admin', 'agent', 'buyer', 'user'
+     */
+    getUserType() {
+      if (this.hasRole('admin') || this.hasRole('Amministratore di Sistema')) {
+        return 'admin';
+      }
+      if (this.hasRole('AgencyAdmin')) {
+        return 'admin';
+      }
+      if (this.hasRole('RealEstateAgent')) {
+        return 'agent';
+      }
+      if (this.hasRole('Buyer')) {
+        return 'buyer';
+      }
+      return 'user';
+    }
+
+    /**
+     * Verifica se l'utente è un admin
+     */
+    isAdmin() {
+      return this.hasAnyRole(['admin', 'Amministratore di Sistema', 'AgencyAdmin']);
+    }
+
+    /**
+     * Verifica se l'utente è nel contesto real estate
+     */
+    isRealEstateUser() {
+      return this.hasAnyRole(['AgencyAdmin', 'RealEstateAgent', 'Buyer']);
+    }
   }
   
   User.init({
