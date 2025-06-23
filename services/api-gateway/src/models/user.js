@@ -40,6 +40,16 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'updated_by',
         as: 'updater'
       });
+
+      User.hasOne(models.UserProfile, {
+        foreignKey: 'user_id',
+        as: 'profile'
+      });
+
+      User.hasMany(models.SavedSearch, {
+        foreignKey: 'user_id',
+        as: 'savedSearches'
+      });
     }
     
     // Verifica password
