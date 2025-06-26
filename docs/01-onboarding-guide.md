@@ -440,10 +440,9 @@ curl -X POST http://localhost:3000/api/users \
 ### 3. **Sviluppo Features Real Estate**
 
 **Roadmap suggerita**:
-1. **Extend API**: Aggiungere endpoint per Listing, SavedSearch
-2. **NLP Integration**: Attivare servizio elaborazione linguaggio naturale
-3. **Scraping Engine**: Implementare estrazione dati portali
-4. **Frontend**: Interfaccia Vue.js per utenti finali
+1. **NLP Integration**: Attivare servizio elaborazione linguaggio naturale
+2. **Scraping Engine**: Implementare estrazione dati portali
+3. **Frontend**: Interfaccia Vue.js per utenti finali
 
 ### 4. **Pattern di Sviluppo**
 

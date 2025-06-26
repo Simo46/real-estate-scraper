@@ -390,9 +390,6 @@ Caching, session storage, message queue, temporary data. In-memory performance p
 **User Management Schema**:
 Sistema completo per gestione utenti con authentication, authorization, preferences, e activity tracking. Support per future subscription models.
 
-**Listing Data Model**:
-Schema flessibile per accommodate different data formats da vari portali. Separation tra raw scraped data e processed/normalized data.
-
 **Search Schema**:
 Storage di ricerche originali in linguaggio naturale, criteria parsed, execution history, e performance metrics.
 

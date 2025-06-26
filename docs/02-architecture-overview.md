@@ -1,877 +1,498 @@
-# Real Estate Scraper - Architecture Overview
+# Real Estate Scraper - Panoramica Architetturale
 
-## 🚀 Quick Reference
+## 🚀 Riferimento Rapido
 
 **Architettura attuale:**
-- **Monolito modulare** con API Gateway enterprise-grade ✅
-- **Database multi-store** - PostgreSQL (attivo) + MongoDB/Redis (preparati) 
-- **Container orchestration** con Docker Compose
-- **Preparazione microservizi** per evoluzione futura
+- **Assistente Immobiliare Personale** (NON portale annunci) ✅
+- **Approccio metadata-only** - NESSUNA violazione ToS ✅
+- **Analisi potenziata da AI** - Valore aggiunto ✅
+- **SaaS multi-tenant** per agenzie immobiliari ✅
 
 **Servizi correnti:**
-- `api-gateway` (3000) - Auth/AuthZ + API REST + Business Logic ✅
+- `api-gateway` (3000) - Auth/AuthZ + API REST + Logica Business ✅
 - `postgres` (5432) - Database principale con schema completo ✅  
-- `redis` (6379) - Cache layer preparato ✅
-- `mongodb` (27017) - Database preparato per annunci immobiliari ⏳
-- `ollama` (11434) - AI infrastructure preparata ⏳
+- `redis` (6379) - Layer di cache preparato ✅
+- `mongodb` (27017) - Database preparato per analisi AI e metadata ⏳
+- `ollama` (11434) - Infrastruttura AI preparata ⏳
 
-**Business Domain:**
-- **Real Estate Scraping**: Estrazione dati da portali immobiliari italiani
-- **AI-Powered Search**: Ricerche in linguaggio naturale con analisi intelligente
-- **Multi-Tenant SaaS**: Piattaforma per multiple agenzie immobiliari
-- **Market Intelligence**: Insights e analytics di mercato
+**Dominio Business:**
+- **Assistente Ricerca Immobiliare**: Ricerca intelligente cross-platform
+- **Analisi Potenziata da AI**: Scoring qualità, analisi corrispondenze, raccomandazioni
+- **Conformità Legale**: Solo metadata, zero violazioni ToS
+- **Market Intelligence**: Insights derivati da analisi AI (non da contenuti di terzi)
 
-**Pattern architetturali implementati:**
-- **API Gateway Pattern** - Routing, auth, rate limiting centralizzato ✅
-- **Multi-Tenancy** - Isolamento dati row-level ✅
-- **RBAC + CASL** - Autorizzazioni granulari ✅
-- **Modular Monolith** - Preparazione per future decomposizione
+---
 
-**Principi fondamentali:**
-- **Local-first AI** - Ollama per modelli linguistici senza costi operativi
-- **Database Specialization** - Tool giusto per use case specifico
-- **Developer Experience** - Setup in 2 comandi, hot reload
-- **Scalability Ready** - Architettura preparata per crescita
+## 🏗️ **ARCHITETTURA FINALE**
+
+### **Modelli Implementati:**
+
+#### **1. User + UserProfile (Separazione delle Responsabilità)**
+```javascript
+// User: Solo autenticazione
+{ id, tenant_id, name, email, username, password, active, settings }
+
+// UserProfile: Dati business Real Estate
+{ user_id, tenant_id, user_type, phone, bio, agency_name,
+  search_preferences, notification_settings, verified, public_profile }
+```
+
+#### **2. SavedSearch (Criteri di Ricerca)**
+```javascript
+{ id, tenant_id, user_id, name, natural_language_query,
+  structured_criteria, execution_frequency, last_executed_at,
+  notify_on_new_results, is_active }
+```
+
+#### **3. SearchExecution (Tracciamento Esecuzioni)**
+```javascript
+{ id, tenant_id, saved_search_id, execution_type, status,
+  started_at, completed_at, platforms_searched, total_results_found,
+  new_results_count, execution_errors }
+```
+
+#### **4. SearchResult (Solo Metadata + AI)**
+```javascript
+// ⚠️ IMPORTANTE: Solo metadata, NESSUN contenuto originale
+{ id, tenant_id, search_execution_id, external_url, source_platform,
+  basic_title, basic_price, basic_location, relevance_score,
+  ai_insights, ai_summary, ai_recommendation, found_at }
+```
+
+---
+
+## 🔄 **FLUSSO OPERATIVO**
+
+### **Architettura "Assistente Personale" (NON Portale)**
+
+```mermaid
+graph TD
+    A[Utente crea SavedSearch] --> B[Sistema salva SOLO CRITERI]
+    B --> C[SearchExecution: Ricerca LIVE]
+    C --> D[Motore Scraping: Trova risultati]
+    D --> E[Motore AI: Analizza TEMPORANEAMENTE]
+    E --> F[Salva SOLO metadata + insights AI]
+    F --> G[Utente riceve link + raccomandazioni]
+    
+    H[NO Storage] --> I[Contenuti originali]
+    H --> J[Immagini complete] 
+    H --> K[Descrizioni verbatim]
+    
+    L[SÌ Storage] --> M[URL esterni]
+    L --> N[Analisi AI]
+    L --> O[Score qualità]
+    L --> P[Raccomandazioni personali]
+```
+
+### **Proposta di Valore 100% Legale:**
+
+**✅ Cosa Offriamo:**
+- **Ricerca Intelligente**: Query naturali cross-platform
+- **Analisi AI**: Scoring qualità + analisi corrispondenze  
+- **Raccomandazioni Personali**: Basate su preferenze utente
+- **Aggregazione**: Risultati centralizzati da fonti multiple
+- **Monitoraggio**: Ricerche salvate con notifiche automatiche
 
 ---
 
 ## 📐 Filosofia Architetturale
 
-### Vision del Progetto
+### **Visione del Progetto**
 
 Il **Real Estate Scraper** è progettato come **piattaforma SaaS multi-tenant** per il mercato immobiliare italiano, con focus su:
 
-**Core Business Value:**
-- **Intelligent Scraping**: Estrazione automatica da Immobiliare.it, Casa.it, Idealista.it
-- **AI-Powered Analysis**: Elaborazione richieste naturali ("Trilocale Milano centro sotto 400k")
+**Valore Business Principale:**
+- **Scraping Intelligente**: Estrazione automatica da diversi siti immobiliari italiani
+- **Analisi Potenziata da AI**: Elaborazione richieste naturali ("Trilocale Milano centro sotto 400k")
 - **Market Intelligence**: Deduplicazione, analisi trend, insights di mercato
-- **Multi-Agency Platform**: Ogni agenzia immobiliare ha i propri dati isolati
+- **Piattaforma Multi-Agenzia**: Ogni agenzia immobiliare ha i propri dati isolati
 
 **Differenziatori Tecnici:**
-- **Zero Cloud AI Costs**: Modelli locali con Ollama (vs OpenAI/Claude)
-- **Real-time Processing**: Pipeline veloce scraping → AI → risultati
-- **Enterprise Security**: Multi-tenancy + RBAC + audit trail
+- **Zero Costi AI Cloud**: Modelli locali con Ollama (vs OpenAI/Claude)
+- **Elaborazione Real-time**: Pipeline veloce scraping → AI → risultati
+- **Sicurezza Enterprise**: Multi-tenancy + RBAC + audit trail
 - **Developer-Friendly**: Setup istantaneo, documentazione completa
 
-### Principi di Design
+### **Principi di Design**
 
-**1. Progressive Complexity**
+**1. Complessità Progressiva**
 - **Oggi**: Monolito modulare per velocità sviluppo
-- **Domani**: Microservizi quando business lo richiede
+- **Domani**: Microservizi quando il business lo richiede
 - **Mai**: Over-engineering per problemi inesistenti
 
-**2. Database-First Strategy**
-- **PostgreSQL**: Dati relazionali (users, permissions, config)
-- **MongoDB**: Dati semi-strutturati (listings, search results)
-- **Redis**: Performance layer (cache, sessions, queues)
+**2. Strategia Database-First**
+- **PostgreSQL**: Dati relazionali (utenti, permessi, configurazione)
+- **MongoDB**: Dati semi-strutturati (risultati ricerca, analisi AI)
+- **Redis**: Layer performance (cache, sessioni, code)
 
-**3. AI/ML Locale**
-- **Privacy-first**: Nessun dato inviato a servizi esterni
-- **Cost-predictable**: Zero costi operativi per inferenza
-- **Performance-optimized**: Modelli ottimizzati per use case specifici
-
-**4. Tenant Isolation**
-- **Data segregation**: Row-level security automatica
-- **Resource isolation**: Configurazioni indipendenti
-- **Billing separation**: Metriche per tenant per future monetizzazione
+**3. AI Locale per Sostenibilità**
+- **Ollama**: Hosting modelli linguistici in-house
+- **Zero dipendenze cloud**: Controllo completo del costo
+- **Privacy-first**: Dati sensibili non escono dal nostro controllo
+- **Personalizzazione**: Fine-tuning per mercato immobiliare italiano
 
 ---
 
-## 🏗️ Architettura Attuale (Monolito Modulare)
+## 🎯 **Architettura Dominio Real Estate**
 
-### Diagramma Stato Corrente
+### **Organizzazione Logica Business Corretta**
 
-```
-┌─────────────────────┐
-│   Frontend          │  📋 PIANIFICATO
-│   (Vue.js)          │  (Phase 3 - Settimane 3-4)
-└──────────┬──────────┘
-           │ HTTP/REST
-           ▼
-┌─────────────────────┐
-│   API Gateway       │  ✅ ENTERPRISE-READY
-│   (Node.js + Express)│  - JWT Multi-Role Auth
-│   - Authentication  │  - CASL Authorization
-│   - Authorization   │  - Multi-Tenant Isolation
-│   - Business Logic  │  - Rate Limiting + Security
-│   - API Endpoints   │  - Audit Trail Ready
-└──────────┬──────────┘
-           │
-    ┌──────┼──────────────┐
-    ▼      ▼              ▼
-┌─────────┐ ┌──────────┐ ┌──────────┐
-│PostgreSQL│ │  Redis   │ │ MongoDB  │  ✅ DATABASE LAYER
-│ ✅ ATTIVO │ │ ✅ SETUP │ │ ⏳ READY │  - Multi-store strategy
-│Users     │ │ Cache    │ │ Listings │  - Specialized per use case
-│Roles     │ │ Sessions │ │ (future) │  - Performance optimized
-│Tenants   │ │ Queue    │ │          │
-└─────────┘ └──────────┘ └──────────┘
-
-           ┌─────────────────┐
-           │     Ollama      │  ⏳ AI INFRASTRUCTURE
-           │ (Llama 3.2:3b)  │  - Local LLM hosting
-           │ ⏳ PREPARATO    │  - Model management
-           └─────────────────┘  - API ready
-```
-
-### Componenti Implementati
-
-**1. API Gateway - ✅ Production Ready**
-
-**Tecnologia**: Node.js 22 + Express 5 + TypeScript ready
-**Porto**: 3000
-**Stato**: **Completamente implementato e documentato**
-
-**Responsabilità attuali**:
+**Entità Core Real Estate (Implementate)**:
 ```javascript
-// Autenticazione enterprise-grade
-├── JWT Multi-Role System
-├── Refresh Token Rotation  
-├── Password Security (bcrypt)
-└── Rate Limiting Protection
-
-// Autorizzazioni granulari
-├── CASL Policy Engine
-├── Field-Level Permissions
-├── Resource-Based Access
-└── Audit Trail Logging
-
-// Multi-Tenancy robusto
-├── Row-Level Data Isolation
-├── Tenant Identification (header/subdomain)
-├── Automatic Query Filtering
-└── Configuration per Tenant
-
-// API Management
-├── RESTful Endpoints
-├── Input Validation (express-validator)
-├── Error Handling Centralized
-└── Response Standardization
-```
-
-**API Endpoints correnti**:
-```bash
-# Core Authentication
-POST   /api/auth/login            # Multi-role login
-POST   /api/auth/refresh          # Token refresh
-POST   /api/auth/switch-role      # Runtime role switching
-GET    /api/auth/me               # Current user info
-
-# User Management (con autorizzazioni)
-GET    /api/users                 # Tenant-filtered list
-POST   /api/users                 # Create with validation
-PUT    /api/users/:id             # Update with field filtering
-DELETE /api/users/:id             # Soft delete con policy
-
-# Role & Permission Management
-GET    /api/roles                 # Available roles
-POST   /api/users/:id/abilities   # Individual permissions
-PUT    /api/roles/:id/abilities   # Role permissions
-
-# System & Health
-GET    /api/health                # System status
-```
-
-**2. Database Layer - ✅ Implementato**
-
-**PostgreSQL 17** (Porto 5432):
-```sql
--- Schema completo implementato
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   tenants   │    │    users    │    │    roles    │
-│     ✅      │    │     ✅      │    │     ✅      │
-│ - id (UUID) │    │ - tenant_id │    │ - name      │
-│ - domain    │    │ - username  │    │ - abilities │
-│ - settings  │    │ - password  │    │ - active    │
-└─────────────┘    └─────────────┘    └─────────────┘
-
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ user_roles  │    │ abilities   │    │user_abilities│
-│     ✅      │    │     ✅      │    │     ✅      │
-│ - user_id   │    │ - role_id   │    │ - user_id   │
-│ - role_id   │    │ - action    │    │ - action    │
-│ - tenant_id │    │ - subject   │    │ - subject   │
-└─────────────┘    └─────────────┘    └─────────────┘
-```
-
-**Redis 8** (Porto 6379):
-- **Stato**: Container attivo, configurazione pronta
-- **Uso corrente**: Cache layer preparato
-- **Pipeline futura**: Session storage, background jobs
-
-**MongoDB 8** (Porto 27017):
-- **Stato**: Container attivo, schema preparato
-- **Collections future**: `listings`, `search_results`, `market_data`
-- **Uso pianificato**: Dati flessibili scraping + AI output
-
-**3. AI Infrastructure - ⏳ Preparata**
-
-**Ollama** (Porto 11434):
-- **Stato**: Container attivo, modelli in download
-- **Modelli preparati**: 
-  - `llama3.2:3b` - Comprensione linguaggio naturale
-  - `nomic-embed-text` - Embeddings per similarità
-- **API pronta**: REST interface per inferenza
-- **Resource management**: Memory pooling configurato
-
----
-
-## 🔄 Flusso Request Attuale
-
-### Pipeline Request-Response
-
-```
-Client Request
-     ↓
-┌─────────────────┐
-│ 1. Tenant       │ ← Identificazione via header/subdomain
-│   Middleware    │   req.tenantId = extractTenant(req)
-└─────────────────┘
-     ↓
-┌─────────────────┐
-│ 2. Auth         │ ← JWT validation + user loading
-│   Middleware    │   req.user = validateJWT(token)
-└─────────────────┘
-     ↓
-┌─────────────────┐
-│ 3. Validation   │ ← Input sanitization + business rules
-│   Middleware    │   errors = validateInput(req.body)
-└─────────────────┘
-     ↓
-┌─────────────────┐
-│ 4. Policy       │ ← CASL authorization + resource loading
-│   Middleware    │   allowed = checkPermission(user, action, resource)
-└─────────────────┘
-     ↓
-┌─────────────────┐
-│ 5. Controller   │ ← Business logic + database operations
-│   Logic         │   result = executeBusinessLogic(req)
-└─────────────────┘
-     ↓
-┌─────────────────┐
-│ 6. Field Filter │ ← Automatic response field filtering
-│   Middleware    │   response = filterFields(result, permissions)
-└─────────────────┘
-```
-
-### Esempio Flusso Concreto
-
-```javascript
-// 1. Request con headers
-GET /api/users
-Headers: {
-  "Authorization": "Bearer eyJ...",
-  "X-Tenant-ID": "78c0ba61-2123-4e63-b1c8-d92e945fc260"
-}
-
-// 2. Tenant identification
-req.tenantId = "78c0ba61-2123-4e63-b1c8-d92e945fc260"
-req.sequelizeOptions = { tenantId: req.tenantId }
-
-// 3. Authentication 
-req.user = {
-  id: "user-uuid",
-  username: "admin",
-  tenant_id: "78c0ba61-2123-4e63-b1c8-d92e945fc260",
-  active_role_name: "Admin",
-  roles: [{ name: "Admin", abilities: [...] }]
-}
-
-// 4. Authorization (CASL)
-ability = buildAbility(req.user.roles)
-allowed = ability.can('read', 'User') // true per Admin
-
-// 5. Database query (auto-filtered)
-users = await User.findAll({}, req.sequelizeOptions)
-// SQL: SELECT * FROM users WHERE tenant_id = '78c0ba61...'
-
-// 6. Response filtering
-filteredUsers = filterFields(users, ability.fieldsFor('read', 'User'))
-// Remove sensitive fields based on permissions
-```
-
----
-
-## 🛡️ Security Architecture Implementata
-
-### Multi-Tenancy Security
-
-**Row-Level Security automatica**:
-```javascript
-// Ogni query automaticamente filtrata
-const users = await User.findAll(); 
-// Diventa: SELECT * FROM users WHERE tenant_id = 'current-tenant'
-
-// Hooks Sequelize trasparenti
-beforeFind: (options) => {
-  if (options.tenantId) {
-    options.where.tenant_id = options.tenantId;
-  }
-}
-
-// Creazione con tenant automatico
-beforeCreate: (instance, options) => {
-  if (options.tenantId) {
-    instance.tenant_id = options.tenantId;
-  }
-}
-```
-
-**Identificazione Tenant sicura**:
-```javascript
-// Development: Header-based
-req.tenantId = req.headers['x-tenant-id'];
-
-// Production: Subdomain-based
-const subdomain = req.get('host').split('.')[0];
-const tenant = await Tenant.findOne({ where: { domain: subdomain } });
-req.tenantId = tenant.id;
-```
-
-### Authorization System (CASL)
-
-**Policy-Based Permissions**:
-```javascript
-// Definizione abilities nel database
-{
-  role_id: "admin-role",
-  action: "manage",      // CRUD completo
-  subject: "all",        // Tutte le risorse
-  priority: 10
-}
-
-{
-  role_id: "user-role", 
-  action: "read",        // Solo lettura
-  subject: "User",       // Solo User entity
-  fields: ["id", "name", "email"], // Campi limitati
-  conditions: { tenant_id: "$user.tenant_id" } // Same tenant only
-}
-
-// Uso nel controller
-const ability = await abilityService.defineAbilityFor(req.user);
-if (ability.cannot('delete', req.resource)) {
-  throw AppError.authorization('Non autorizzato');
-}
-```
-
-**Field-Level Security**:
-```javascript
-// Response automaticamente filtrata
-res.json(userData); 
-
-// Field filter middleware intercetta e filtra
-const allowedFields = ability.fieldsFor('read', 'User');
-const filteredData = pick(userData, allowedFields);
-// User normale non vede: password, internal_notes, etc.
-```
-
-### Authentication Security
-
-**JWT Strategy avanzata**:
-```javascript
-// Access token (15 min) + Refresh token (7 giorni)
-const tokens = {
-  accessToken: jwt.sign(payload, SECRET, { expiresIn: '15m' }),
-  refreshToken: jwt.sign(refreshPayload, REFRESH_SECRET, { expiresIn: '7d' })
-};
-
-// Multi-role support
-if (user.roles.length > 1) {
-  // PreAuth token per selezione ruolo
-  return { status: 'choose_role', preAuthToken, availableRoles };
-} else {
-  // Direct token con ruolo unico
-  return { status: 'success', tokens, user };
-}
-```
-
-**Security Headers e Protection**:
-```javascript
-// Rate limiting per endpoint
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minuti
-  max: 5 // 5 tentativi per IP
-});
-
-// Security headers con Helmet
-app.use(helmet({
-  contentSecurityPolicy: {...},
-  hsts: { maxAge: 31536000 },
-  noSniff: true
-}));
-```
-
----
-
-## 📊 Stack Tecnologico Dettagliato
-
-### Backend Core (✅ Production Ready)
-```yaml
-Runtime: 
-  - Node.js 22 (ESM support, performance)
-  - Express 5 (promise-native, async/await)
-
-Security:
-  - Passport.js (authentication strategies)
-  - @casl/ability (granular authorization)
-  - bcrypt (password hashing, salt factor 12)
-  - helmet (security headers)
-
-Validation & Processing:
-  - express-validator (input validation + sanitization)
-  - express-rate-limit (DDoS protection)
-  - cors (cross-origin resource sharing)
-
-Database ORM:
-  - Sequelize 6 (PostgreSQL integration)
-  - Hooks system (multi-tenancy automation)
-  - Migration system (schema versioning)
-
-Logging & Monitoring:
-  - Pino (structured JSON logging)
-  - morgan (HTTP request logging)
-  - Custom health checks
-```
-
-### Database Stack (✅ Configured)
-```yaml
-PostgreSQL 17:
-  - ACID transactions
-  - JSON/JSONB support (settings, conditions)
-  - Full-text search ready
-  - Performance optimized (indexes, constraints)
-
-Redis 8:
-  - In-memory caching
-  - Session storage ready
-  - Pub/sub for future messaging
-  - LRU eviction policies
-
-MongoDB 8:
-  - Document store
-  - Flexible schema (listings variations)
-  - Aggregation pipeline ready
-  - Indexing strategy prepared
-```
-
-### AI/ML Stack (⏳ Infrastructure Ready)
-```yaml
-Ollama:
-  - Local LLM hosting
-  - Model management automation
-  - API interface standard
-  - Resource optimization
-
-Planned Models:
-  - llama3.2:3b (general NLP)
-  - nomic-embed-text (embeddings)
-  - Future: Fine-tuned Italian real estate models
-
-Python Integration (Future):
-  - FastAPI (NLP service)
-  - spaCy (Italian language processing)
-  - scikit-learn (ML pipelines)
-  - OpenCV (image analysis per listings)
-```
-
-### DevOps & Infrastructure (✅ Implemented)
-```yaml
-Containerization:
-  - Docker + Docker Compose
-  - Multi-stage builds
-  - Health checks configured
-  - Volume management
-
-Development:
-  - Hot reload (nodemon)
-  - Environment configuration (.env)
-  - Database migrations automatic
-  - Seeding system
-
-Monitoring:
-  - Structured logging
-  - Performance metrics ready
-  - Error tracking prepared
-  - Health endpoints
-```
-
----
-
-## 🔮 Evoluzione Architetturale Pianificata
-
-### Fase Attuale: Monolito Modulare Robusto
-**Timeframe**: Settimane 1-6 (MVP + Alpha)
-**Stato**: API Gateway enterprise-ready ✅
-
-**Vantaggi attuali**:
-- **Sviluppo rapido**: Single codebase, shared models
-- **Debugging semplice**: Stack trace completo
-- **Transazioni**: ACID compliance nativo
-- **Performance**: No network overhead tra componenti
-
-**Pattern preparatori per microservizi**:
-```javascript
-// Domain separation già implementata
-services/
-├── api-gateway/          # Auth + API management
-├── nlp-service/         # NLP processing (ready)
-├── scraping-service/    # Data extraction (planned)
-└── vision-service/      # Image analysis (planned)
-
-// Service interfaces definite
-class UserService {
-  async createUser(userData) { /* isolated business logic */ }
-}
-
-// Event-driven patterns ready
-events.emit('user.created', { userId, tenantId });
-```
-
-### Fase Intermedia: Service Extraction
-**Timeframe**: Settimane 7-12 (Beta)
-**Pattern**: Strangler Fig per gradual decomposition
-
-**Primi candidati per extraction**:
-```mermaid
-graph TB
-    A[API Gateway] --> B[NLP Service]
-    A --> C[Scraping Service]
-    A --> D[Vision Service]
-    A --> E[Report Service]
-    
-    B --> F[MongoDB<br/>NLP Results]
-    C --> G[MongoDB<br/>Raw Listings]
-    D --> H[MongoDB<br/>Image Analysis]
-    E --> I[PostgreSQL<br/>Reports Meta]
-```
-
-**Communication Patterns**:
-- **Synchronous**: REST APIs per real-time operations
-- **Asynchronous**: Redis pub/sub per background processing
-- **Data Consistency**: Event sourcing per audit trail
-
-### Fase Avanzata: Distributed Microservices
-**Timeframe**: Post-MVP (Production scaling)
-**Trigger**: >10K requests/minute o team >8 persone
-
-**Service Mesh Architecture**:
-```yaml
-Infrastructure:
-  - Kubernetes orchestration
-  - Istio service mesh
-  - Distributed tracing
-  - Circuit breakers
-
-Data Strategy:
-  - Database per service
-  - Event-driven consistency
-  - CQRS where beneficial
-  - Distributed caching
-
-Observability:
-  - Centralized logging (ELK stack)
-  - Metrics aggregation (Prometheus)
-  - Distributed tracing (Jaeger)
-  - Business KPI dashboards
-```
-
----
-
-## 🎯 Real Estate Domain Architecture
-
-### Business Logic Organization
-
-**Planned Domain Services**:
-```javascript
-// Core Real Estate Entities
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│    Listing      │    │  SavedSearch    │    │  SearchResult   │
-│   (MongoDB)     │    │ (PostgreSQL)    │    │   (MongoDB)     │
+│   SavedSearch   │    │ SearchExecution │    │  SearchResult   │
+│ (PostgreSQL)    │    │ (PostgreSQL)    │    │ (PostgreSQL)    │
 │                 │    │                 │    │                 │
-│ - title         │    │ - user_id       │    │ - search_id     │
-│ - description   │    │ - criteria      │    │ - listings[]    │
-│ - price         │    │ - schedule      │    │ - ai_insights   │
-│ - location      │    │ - notifications │    │ - created_at    │
-│ - images[]      │    │ - tenant_id     │    │ - quality_score │
-│ - source_url    │    │ - active        │    │ - dedup_groups  │
-│ - scraped_at    │    │ - last_run      │    │ - market_data   │
+│ - user_id       │    │ - saved_search  │    │ - external_url  │
+│ - criteria      │    │ - status        │    │ - ai_insights   │
+│ - nl_query      │    │ - platforms     │    │ - relevance     │
+│ - frequency     │    │ - started_at    │    │ - ai_summary    │
+│ - notifications │    │ - results_count │    │ - recommendation│
+│ - tenant_id     │    │ - tenant_id     │    │ - tenant_id     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-**Planned Processing Pipeline**:
+### **Pipeline Analisi AI Pianificata**:
 ```mermaid
 graph LR
-    A[User Query<br/>Natural Language] --> B[NLP Service<br/>Entity Extraction]
-    B --> C[Scraping Service<br/>Multi-Portal Data]
-    C --> D[Vision Service<br/>Image Analysis]
-    D --> E[AI Service<br/>Deduplication]
-    E --> F[Report Service<br/>Market Insights]
-    F --> G[Response<br/>Structured Results]
+    A[Query Utente<br/>Linguaggio Naturale] --> B[Servizio NLP<br/>Estrazione Criteri]
+    B --> C[Servizio Scraping<br/>Ricerca LIVE Portali Multipli]
+    C --> D[Servizio AI<br/>Analisi Qualità]
+    D --> E[Servizio AI<br/>Scoring Corrispondenze]
+    E --> F[Memorizza Metadata<br/>+ Solo Insights AI]
+    F --> G[Report Utente<br/>Link + Raccomandazioni]
 ```
 
-**Integration Points Ready**:
+### **Strategia Conformità Legale**:
+
+**1. Scraping Uso Personale:**
+- Rate limiting rispettoso
+- Ricerche specifiche per utente (non redistribuzione commerciale)
+- Attribuzione alle sorgenti originali
+
+**2. Memorizzazione Solo Metadata:**
+- URL esterni (informazione pubblica)
+- Dati base per filtraggio (prezzo, ubicazione)
+- Insights generati da AI (nostra proprietà intellettuale)
+
+**3. Valore Aggiunto AI:**
+- Algoritmi scoring qualità
+- Raccomandazioni personalizzate
+- Analisi trend di mercato
+- Rilevamento duplicati
+
+---
+
+## 🎯 **Endpoint API Implementati (parziale)**
+
+### **API SearchResult (9 endpoint)**
 ```javascript
-// API Gateway endpoints preparati per integration
-POST /api/searches/natural           // NLP query processing
-GET  /api/searches/:id/results       // Paginated results
-POST /api/searches/:id/execute       // Manual search execution
-GET  /api/listings/:id               // Single listing detail
-POST /api/listings/:id/analyze       // AI analysis request
+GET    /api/search-results          // Lista con filtraggio AI
+GET    /api/search-results/:id      // Singolo risultato + insights AI
+POST   /api/search-results          // Crea risultato (uso interno)
+PUT    /api/search-results/:id      // Aggiorna analisi AI
+DELETE /api/search-results/:id      // Rimuovi risultato
+GET    /api/search-results/stats    // Dashboard analytics
+POST   /api/search-results/ai-analyze // Trigger ri-analisi AI
+GET    /api/search-results/export   // Export per utente
+POST   /api/search-results/feedback // Feedback utente su AI
 ```
 
-### Data Flow Architecture
+### **API SavedSearch (12 endpoint)**
+```javascript
+GET    /api/saved-searches              // Ricerche salvate utente
+GET    /api/saved-searches/:id          // Dettagli singola ricerca
+POST   /api/saved-searches              // Crea nuova ricerca
+PUT    /api/saved-searches/:id          // Aggiorna criteri
+DELETE /api/saved-searches/:id          // Elimina ricerca
+POST   /api/saved-searches/:id/execute  // Esecuzione manuale
+GET    /api/saved-searches/:id/executions // Storico
+POST   /api/saved-searches/:id/duplicate // Duplica ricerca
+PUT    /api/saved-searches/:id/schedule  // Aggiorna frequenza
+PUT    /api/saved-searches/:id/notifications // Impostazioni notifiche
+GET    /api/saved-searches/stats        // Statistiche utente
+POST   /api/saved-searches/natural     // Creazione linguaggio naturale
+```
 
-**Planned Multi-Store Strategy**:
-```yaml
-PostgreSQL (Transactional):
-  - Users, roles, permissions (✅ implemented)
-  - Saved searches, user preferences
-  - Billing, subscriptions, audit logs
-  - Configuration, tenant settings
-
-MongoDB (Flexible):
-  - Raw scraped listings (variation in structure)
-  - AI processing results (embeddings, classifications)
-  - Search results with complex nested data
-  - Market analytics aggregations
-
-Redis (Performance):
-  - Frequent search results caching
-  - User session data
-  - Real-time notification queues
-  - Rate limiting counters
+### **API SearchExecution (11 endpoint)**
+```javascript
+GET    /api/search-executions           // Lista esecuzioni
+GET    /api/search-executions/:id       // Singola esecuzione
+POST   /api/search-executions           // Crea esecuzione
+PUT    /api/search-executions/:id       // Aggiorna stato
+DELETE /api/search-executions/:id       // Annulla esecuzione
+GET    /api/search-executions/:id/results // Risultati per esecuzione
+GET    /api/search-executions/:id/logs  // Log errori
+POST   /api/search-executions/:id/retry // Riprova esecuzione fallita
+GET    /api/search-executions/stats     // Statistiche esecuzione
+PUT    /api/search-executions/:id/priority // Aggiorna priorità
+POST   /api/search-executions/bulk-retry // Operazioni bulk retry
 ```
 
 ---
 
-## 📈 Performance & Scalability Strategy
+## 🔐 **Sicurezza e Autorizzazione (parziale)**
 
-### Current Performance Profile
-
-**API Gateway Benchmarks** (target vs attuale):
+### **Ruoli Real Estate:**
 ```javascript
-// Response Times (95th percentile)
-Authentication:     < 100ms  ✅ (measured ~50ms)
-User CRUD:         < 200ms  ✅ (measured ~120ms)  
-Role Permissions:  < 150ms  ✅ (measured ~80ms)
-Database Queries:  < 50ms   ✅ (connection pooled)
+// Buyer: Consuma risultati di ricerca
+permessi: [
+  'leggi SearchResult', 'gestisci SavedSearch (proprie)', 'leggi analytics base'
+]
 
-// Throughput (concurrent users)
-Current Capacity:   ~100 concurrent  ✅
-Database Pool:      10 connections   ✅
-Memory Usage:       ~200MB baseline  ✅
+// RealEstateAgent: Utente professionale
+permessi: [
+  'leggi SearchResult', 'gestisci SavedSearch (proprie)', 'leggi SearchResult',
+  'gestisci UserProfile (proprio)', 'leggi analytics mercato'
+]
+
+// AgencyAdmin: Amministratore tenant  
+permessi: [
+  'gestisci User (tenant)', 'leggi SavedSearch (tenant)',
+  'leggi SearchExecution (tenant)', 'leggi analytics (tenant)'
+]
 ```
 
-**Scaling Bottlenecks Identificati**:
-1. **Database connections** - Pool sizing appropriate
-2. **JWT verification** - Stateless strategy correct
-3. **CASL ability calculation** - Caching planned
-4. **File uploads** (future) - CDN strategy ready
+### **Applicazione Policy:**
+- **Sicurezza row-level**: Tutte le query filtrate per `tenant_id`
+- **Filtraggio field-level**: Dati sensibili nascosti in base al ruolo
+- **Proprietà risorsa**: Gli utenti possono accedere solo alle proprie ricerche salvate
+- **Isolamento cross-tenant**: Zero perdita dati tra agenzie
 
-### Horizontal Scaling Readiness
+---
 
-**Load Balancing preparato**:
+## 📊 **Stack Tecnologico**
+
+### **Core Backend (✅ Implementato)**
 ```yaml
-# docker-compose.scale.yml (future)
-services:
-  api-gateway:
-    deploy:
-      replicas: 3
-      
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    depends_on:
-      - api-gateway
-    # Load balancer configuration
+Autenticazione e Autorizzazione:
+  - JWT con rotazione refresh token
+  - Permessi basati su CASL (granulari)
+  - Sicurezza row-level multi-tenant
+  - Gestione sessioni con Redis
+
+Layer API:
+  - Express.js con predisposizione TypeScript
+  - Logging strutturato (Pino)
+  - Gestione errori completa
+  - Documentazione OpenAPI preparata
+
+Strategia Database:
+  - PostgreSQL 17+ (dati relazionali)
+  - Redis 8+ (cache, sessioni, code)
+  - MongoDB 8+ (pianificato per dati AI/ML)
+
+Dominio Real Estate:
+  - 4 modelli core implementati
+  - 32 endpoint API attivi
+  - Autorizzazione basata su policy
+  - Audit trail pronto
 ```
 
-**Database Scaling Strategy**:
+### **Stack AI/ML (⏳ Infrastruttura Pronta)**
 ```yaml
-Read Replicas:
-  - PostgreSQL read replicas per queries heavy
-  - MongoDB sharding per large datasets
-  - Redis clustering per cache distribution
+Strategia AI Locale:
+  - Ollama per hosting LLM (zero costi cloud)
+  - Modelli pianificati: llama3.2:3b, nomic-embed-text
+  - Elaborazione lingua italiana (spaCy)
+  - Computer vision per immagini proprietà
 
-Connection Management:
-  - PgBouncer per PostgreSQL pooling
-  - Redis Sentinel per high availability
-  - MongoDB replica sets per reliability
-```
-
-**Caching Layers implementabili**:
-```javascript
-// Application Level
-app.use('/api/users', cacheMiddleware({ ttl: 300 })); // 5 min cache
-
-// Database Level  
-User.findAll({ 
-  cache: true,
-  cacheTTL: 600  // 10 min per expensive queries
-});
-
-// CDN Level (future)
-// Static assets + API responses cacheable
+Pipeline Analisi:
+  - Algoritmi scoring qualità
+  - Deduplicazione via embedding
+  - Rilevamento trend mercato
+  - Motore personalizzazione
 ```
 
 ---
 
-## 🔍 Monitoring & Observability Ready
+## 🚀 **Architettura Deployment (Attuale)**
 
-### Health Check System
+### **Ambiente Sviluppo (✅ Attivo)**
+```yaml
+docker-compose.yml:
+  - api-gateway: Node.js + Express + PostgreSQL
+  - postgres: Schema multi-tenant con RLS
+  - redis: Cache + gestione sessioni
+  - (ollama): Preparato per integrazione AI
 
-**Endpoint implementato**:
+Health Check:
+  - Connettività database
+  - Servizio autenticazione
+  - Policy autorizzazione
+  - Performance cache
+```
+
+### **Preparazione Produzione**
+```yaml
+Preparazione Scalabilità:
+  - Pattern scaling orizzontale
+  - Pooling connessioni database
+  - Clustering Redis pronto
+  - Configurazione load balancer
+
+Monitoraggio Pronto:
+  - Logging strutturato (JSON)
+  - Endpoint metriche performance
+  - Integrazione tracking errori
+  - Dashboard KPI business pianificate
+```
+
+---
+
+## 🔮 **Evoluzione Architetturale Pianificata**
+
+**Pattern preparatori per microservizi**:
 ```javascript
-GET /api/health
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "services": {
-    "database": "healthy",     // PostgreSQL connection test
-    "redis": "healthy",        // Redis ping test  
-    "mongodb": "healthy",      // MongoDB connection test
-    "ollama": "preparing"      // AI service status
-  },
-  "metrics": {
-    "uptime": 3600,           // Seconds since startup
-    "memory": "245MB",        // Current memory usage
-    "activeConnections": 12   // Database connections
-  }
+// Separazione dominio già implementata
+services/
+├── api-gateway/          # Auth + gestione API
+├── nlp-service/         # Elaborazione NLP (preparato)
+├── scraping-service/    # Estrazione dati (pianificato)
+└── vision-service/      # Analisi immagini (pianificato)
+
+// Interfacce servizio definite
+class UserService {
+  async createUser(userData) { /* logica business isolata */ }
 }
+
+// Pattern event-driven pronti
+events.emit('user.created', { userId, tenantId });
 ```
 
-**Logging Structure**:
-```javascript
-// Structured logging con Pino
-logger.info({
-  userId: req.user.id,
-  tenantId: req.tenantId,
-  action: 'user.create',
-  resource: 'User',
-  duration: 120,           // ms
-  success: true
-}, 'User created successfully');
+### **Fase Intermedia: Estrazione Servizi**
 
-// Error logging con context
-logger.error({
-  err: error,
-  userId: req.user.id,
-  endpoint: req.path,
-  method: req.method
-}, 'Database operation failed');
+**Primi candidati per estrazione**:
+```mermaid
+graph TB
+    A[API Gateway] --> B[Servizio NLP]
+    A --> C[Servizio Scraping]
+    A --> D[Servizio Vision]
+    A --> E[Servizio Report]
+    
+    B --> F[MongoDB<br/>Risultati NLP]
+    C --> G[MongoDB<br/>Listing Grezzi]
+    D --> H[MongoDB<br/>Analisi Immagini]
+    E --> I[PostgreSQL<br/>Meta Report]
 ```
 
-### Metrics Collection Ready
+**Pattern Comunicazione**:
+- **Sincrono**: API REST per operazioni real-time
+- **Asincrono**: Redis pub/sub per elaborazione background
+- **Consistenza Dati**: Event sourcing per audit trail
 
-**Business KPIs preparati**:
-```javascript
-// User engagement metrics
-- Authentication success rate
-- API endpoint usage patterns  
-- Permission denied frequency
-- Response time percentiles
+### **Fase Avanzata: Microservizi Distribuiti**
+**Timeframe**: Post-MVP (Scaling produzione)
+**Trigger**: >10K richieste/minuto o team >8 persone
 
-// Technical metrics
-- Database query performance
-- Memory usage trends
-- Error rate by endpoint
-- Cache hit/miss ratios
+**Architettura Service Mesh**:
+```yaml
+Infrastruttura:
+  - Orchestrazione Kubernetes
+  - Service mesh Istio
+  - Tracing distribuito
+  - Circuit breaker
 
-// Business metrics (future)
-- Search execution frequency
-- Result quality scores
-- User retention by feature
-- Tenant usage patterns
+Strategia Dati:
+  - Database per servizio
+  - Consistenza event-driven
+  - CQRS dove vantaggioso
+  - Cache distribuita
+
+Osservabilità:
+  - Logging centralizzato (stack ELK)
+  - Aggregazione metriche (Prometheus)
+  - Tracing distribuito (Jaeger)
+  - Dashboard KPI business
 ```
 
 ---
 
-## 🎯 Conclusioni e Next Steps
+## 🎯 **Vantaggi Competitivi**
 
-### Punti di Forza Architettura Attuale
+### **1. Sicurezza Legale Prima di Tutto**
+- **Zero violazioni ToS** - modello business sostenibile
+- **Approccio metadata-only** - nessun problema copyright
+- **Conformità attribuzione** - rispettoso verso piattaforme sorgente
+- **Audit trail pronto** - operazioni trasparenti
 
-**✅ Enterprise-Grade Foundation:**
-- Multi-tenancy robusto con row-level security
-- Autorizzazioni granulari con field-level control
-- Security hardened con rate limiting + JWT rotation
-- Audit trail ready per compliance
+### **2. Valore Potenziato AI**
+- **Scoring qualità** - meglio di semplice aggregazione
+- **Raccomandazioni personali** - su misura per preferenze utente  
+- **Insights mercato** - derivati da analisi AI, non contenuti scraping
+- **Elaborazione locale** - zero costi AI cloud
 
-**✅ Developer Experience Ottimizzato:**
-- Setup in 2 comandi con documentazione completa
-- Hot reload per rapid development
-- Error handling centralizzato con structured logging
-- Pattern consistenti per extension
+### **3. Architettura Enterprise**
+- **Multi-tenant nativo** - agenzie possono competere in sicurezza
+- **Permessi granulari** - controllo accesso basato su ruoli
+- **Conformità audit** - tracking operazioni completo
+- **Fondazione scalabile** - pronta per crescita
 
-**✅ Scalability Prepared:**
-- Database strategy multi-store per performance
-- Container orchestration ready per horizontal scaling
-- Service extraction patterns implementati
-- AI infrastructure preparata con Ollama
+---
 
-### Roadmap Tecnica Immediata
+## 🏆 **Metriche di Successo**
 
-**Settimane 3-4: Domain Implementation**
-```javascript
-// Real Estate entities
-├── Listing model (MongoDB schema)
-├── SavedSearch model (PostgreSQL)  
-├── SearchResult model (MongoDB)
-└── Market analytics aggregations
+### **KPI Tecnici:**
+- **Zero violazioni ToS** - operazioni sostenibili
+- **Risposta API sub-200ms** - target performance
+- **99.9% uptime** - target affidabilità
+- **Isolamento multi-tenant** - validazione sicurezza
 
-// API endpoints
-├── POST /api/searches/natural      // NLP integration
-├── GET  /api/listings             // Paginated listings
-├── POST /api/searches/:id/execute // Manual execution
-└── GET  /api/analytics/market     // Insights dashboard
+### **KPI Business:**
+- **Tasso successo ricerca utente** - qualità raccomandazioni AI
+- **Tempo risparmiato per ricerca** - miglioramento efficienza
+- **Tasso adozione agenzie** - crescita multi-tenant
+- **Tasso retention utenti** - validazione proposta valore
+
+---
+
+## 💡 **Filosofia Architetturale**
+
+*"Siamo il tuo assistente immobiliare personale che trova, analizza e raccomanda le migliori proprietà da tutti i portali, facendoti risparmiare tempo fornendoti insights che non troveri altrove."*
+
+---
+
+## 🛠️ **Comandi Sviluppo**
+
+### **Setup Ambiente Sviluppo:**
+```bash
+# Clone e setup
+git clone [repository-url]
+cd real-estate-scraper
+cp .env.example .env
+
+# Avvio servizi
+docker compose up -d
+
+# Migrazione database
+docker compose exec api-gateway npx sequelize-cli db:migrate
+
+# Test sistema
+docker compose exec api-gateway node scripts/test-real-estate-models.js
 ```
 
-**Settimane 5-6: AI Integration**
-```javascript
-// NLP Service activation
-├── Ollama model fine-tuning
-├── FastAPI service development
-├── Integration con API Gateway
-└── Quality testing pipeline
+### **Test API:**
+```bash
+# Ottenere token JWT
+TOKEN=$(curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | jq -r '.data.token')
 
-// Computer Vision preparation
-├── Image analysis pipeline
-├── Property condition assessment
-├── Similarity detection
-└── Quality scoring
+# Test endpoint
+curl -X GET "http://localhost:3000/api/saved-searches" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-**Settimane 7-8: Frontend + Integration**
-```javascript
-// Vue.js application
-├── Authentication integration
-├── Search interface
-├── Results visualization
-└── Management dashboard
+### **Monitoraggio:**
+```bash
+# Log applicazione
+docker compose logs -f api-gateway
 
-// End-to-end testing
-├── User journey validation
-├── Performance benchmarking  
-├── Security audit
-└── Documentation completion
+# Metriche database
+docker compose exec postgres psql -U postgres -d real_estate_dev -c "\dt"
+
+# Status Redis
+docker compose exec redis redis-cli ping
 ```
 
-### Architettura come Competitive Advantage
-
-**Local AI Strategy:**
-- **Zero ongoing costs** per inferenza vs cloud APIs
-- **Privacy-first** approach per clienti enterprise
-- **Customization** modelli per mercato italiano
-
-**Multi-Tenancy Nativo:**
-- **Isolation completo** per agenzie concorrenti
-- **Scalability** per growth senza architectural rewrite
-- **Compliance** ready per settore regulated
-
-**Developer-Centric:**
-- **Documentation completa** riduce onboarding time
-- **Pattern consistenti** accelerano feature development
-- **Testing framework** garantisce quality rilasci
-
-L'architettura bilancia **pragmatismo presente** con **vision futura**, permettendo al team di concentrarsi su business value mentre mantiene flessibilità tecnica per crescita ed evoluzione. 🚀
+---
