@@ -156,6 +156,69 @@ services:
       # REMOVE: Non serve più montare .env specifico
       # - ./services/api-gateway/.env:/app/.env:ro
 
+  python-scraper:
+    build:
+      context: ./services/python-scraper
+    ports:
+      - "${PYTHON_SCRAPER_PORT:-8001}:8000"
+    environment:
+      # ===== DEVELOPMENT SETTINGS =====
+      - NODE_ENV=${NODE_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - PYTHON_ENV=${NODE_ENV:-development}
+      
+      # ===== DATABASE INTEGRATION =====
+      - MONGO_HOST=${MONGO_HOST:-mongodb}
+      - MONGO_PORT=${MONGO_PORT_INTERNAL:-27017}
+      - MONGO_USERNAME=${MONGO_USERNAME:-admin}
+      - MONGO_PASSWORD=${MONGO_PASSWORD:-secret}
+      - MONGO_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-secret}@${MONGO_HOST:-mongodb}:${MONGO_PORT_INTERNAL:-27017}
+      
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT_INTERNAL:-6379}
+      - REDIS_URL=redis://${REDIS_HOST:-redis}:${REDIS_PORT_INTERNAL:-6379}/0
+      
+      # ===== API INTEGRATION =====
+      - API_GATEWAY_URL=http://api-gateway:3000
+      - JWT_VERIFY_URL=http://api-gateway:3000/api/auth/verify
+      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev_refresh_secret}
+      
+      # ===== SCRAPING CONFIGURATION =====
+      - SCRAPER_MAX_CONCURRENT_JOBS=${SCRAPER_MAX_CONCURRENT_JOBS:-5}
+      - SCRAPER_DEFAULT_DELAY=${SCRAPER_DEFAULT_DELAY:-1000}
+      - SCRAPER_USER_AGENT_ROTATION=${SCRAPER_USER_AGENT_ROTATION:-true}
+      - SCRAPER_RETRY_ATTEMPTS=${SCRAPER_RETRY_ATTEMPTS:-3}
+      - SCRAPER_TIMEOUT=${PYTHON_SCRAPER_TIMEOUT:-300}
+      - SCRAPER_WORKERS=${PYTHON_SCRAPER_WORKERS:-4}
+      
+      # ===== FEATURE FLAGS =====
+      - ENABLE_SCRAPING=${ENABLE_SCRAPING:-true}
+      - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - ENABLE_TRACING=${ENABLE_TRACING:-false}
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    volumes:
+      # Hot reload per development
+      - ./services/python-scraper:/app
+      - /app/__pycache__  # Prevents Python cache override
+
 volumes:
   postgres_data:
     name: real_estate_postgres_data
