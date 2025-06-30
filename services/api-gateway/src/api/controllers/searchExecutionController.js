@@ -6,6 +6,7 @@ const { validationResult } = require('express-validator');
 const { createLogger } = require('../../utils/logger');
 const logger = createLogger('controllers:searchExecution');
 const { Op } = require('sequelize');
+const SearchEngineService = require('../../services/searchEngineService');
 
 /**
  * Controller per la gestione delle esecuzioni di ricerca
@@ -13,6 +14,9 @@ const { Op } = require('sequelize');
  */
 class SearchExecutionController {
   constructor() {
+    // Initialize Search Engine Service
+    this.searchEngineService = new SearchEngineService();
+    
     // Bind di tutti i metodi per preservare il contesto this
     this.getSearchExecutions = this.getSearchExecutions.bind(this);
     this.getSearchExecutionById = this.getSearchExecutionById.bind(this);
@@ -728,6 +732,51 @@ class SearchExecutionController {
       }, { transaction });
 
       await transaction.commit();
+
+      // Invoke Search Engine Service for retry processing
+      try {
+        const context = {
+          tenant_id: req.tenantId,
+          user_id: req.user.id
+        };
+        
+        // Delete the created execution since SearchEngineService will create its own
+        await SearchExecution.destroy({
+          where: { id: retryExecution.id }
+        });
+        
+        const newExecution = await this.searchEngineService.executeSearch(
+          failedExecution.saved_search_id, 
+          'retry', 
+          context
+        );
+        
+        logger.info('Search engine service invoked for retry', {
+          originalExecutionId: id,
+          newExecutionId: newExecution.id
+        });
+        
+        // Update response with new execution
+        retryExecution.id = newExecution.id;
+        
+      } catch (serviceError) {
+        logger.error('Error invoking search engine service for retry', {
+          error: serviceError.message,
+          originalExecutionId: id,
+          retryExecutionId: retryExecution.id
+        });
+        
+        // If service fails, update retry execution status
+        await SearchExecution.update({
+          status: 'failed',
+          execution_metadata: {
+            error_message: serviceError.message,
+            failed_at: new Date()
+          }
+        }, {
+          where: { id: retryExecution.id }
+        });
+      }
 
       logger.info('Search execution retry created', {
         originalExecutionId: id,

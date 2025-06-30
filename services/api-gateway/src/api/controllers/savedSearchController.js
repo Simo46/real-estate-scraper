@@ -6,6 +6,7 @@ const { validationResult } = require('express-validator');
 const { createLogger } = require('../../utils/logger');
 const logger = createLogger('controllers:savedSearch');
 const { Op } = require('sequelize');
+const SearchEngineService = require('../../services/searchEngineService');
 
 /**
  * Controller per la gestione delle ricerche salvate
@@ -13,6 +14,10 @@ const { Op } = require('sequelize');
  */
 class SavedSearchController {
   constructor() {
+    // Initialize Search Engine Service
+    this.searchEngineService = new SearchEngineService();
+    // this.searchEngineService = null; // Lazy initialization
+    
     // Bind di tutti i metodi per preservare il contesto this
     this.getSavedSearches = this.getSavedSearches.bind(this);
     this.getSavedSearchById = this.getSavedSearchById.bind(this);
@@ -24,6 +29,14 @@ class SavedSearchController {
     this.toggleActive = this.toggleActive.bind(this);
     this.duplicateSavedSearch = this.duplicateSavedSearch.bind(this);
     this.getSearchStats = this.getSearchStats.bind(this);
+  }
+
+  _getSearchEngineService() {
+    if (!this.searchEngineService) {
+      const SearchEngineService = require('../../services/searchEngineService');
+      this.searchEngineService = new SearchEngineService();
+    }
+    return this.searchEngineService;
   }
 
   /**
@@ -455,8 +468,46 @@ class SavedSearchController {
 
       await transaction.commit();
 
-      // TODO: Qui dovrebbe essere invocato il scraping service
-      // per iniziare l'elaborazione asincrona della ricerca
+      // Invoke Search Engine Service for asynchronous processing  
+      try {
+        const context = {
+          tenant_id: req.tenantId,
+          user_id: req.user.id
+        };
+        
+        // Il SearchEngineService creerà la propria SearchExecution, quindi cancelliamo quella creata qui
+        await SearchExecution.destroy({
+          where: { id: searchExecution.id }
+        });
+        
+        const newExecution = await this.searchEngineService.executeSearch(id, execution_type, context);
+        
+        logger.info('Search engine service invoked successfully', {
+          savedSearchId: id,
+          executionId: newExecution.id
+        });
+        
+        // Aggiorna la response con la nuova execution
+        searchExecution = newExecution;
+        
+      } catch (serviceError) {
+        logger.error('Error invoking search engine service', {
+          error: serviceError.message,
+          savedSearchId: id,
+          executionId: searchExecution.id
+        });
+        
+        // Se il servizio fallisce, manteniamo l'execution originale e aggiorniamo lo status
+        await SearchExecution.update({
+          status: 'failed',
+          execution_metadata: {
+            error_message: serviceError.message,
+            failed_at: new Date()
+          }
+        }, {
+          where: { id: searchExecution.id }
+        });
+      }
 
       logger.info('Saved search execution started', {
         savedSearchId: id,

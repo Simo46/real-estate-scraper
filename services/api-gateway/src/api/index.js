@@ -26,19 +26,10 @@ const savedSearchController = require('./controllers/savedSearchController');
 console.log('Loading searchExecutionController...');
 const searchExecutionController = require('./controllers/searchExecutionController');
 
-// ===== ROUTES =====
+// ===== ROUTES (Combined Router) =====
 
-// Routes esistenti
-console.log('Loading routes...');
-const routes = require('./routes');
-
-// Routes Real Estate (Task 1.5)
-console.log('Loading searchResultRoutes...');
-const searchResultRoutes = require('./routes/searchResultRoutes');
-console.log('Loading savedSearchRoutes...');
-const savedSearchRoutes = require('./routes/savedSearchRoutes');
-console.log('Loading searchExecutionRoutes...');
-const searchExecutionRoutes = require('./routes/searchExecutionRoutes');
+console.log('Loading combined routes...');
+const routes = require('./routes'); // This now imports the combined router
 
 // ===== VALIDATORS =====
 
@@ -79,16 +70,8 @@ module.exports = {
     searchExecutionController
   },
 
-  // Routes
-  routes: {
-    // Routes di base (users, auth, etc.)
-    base: routes,
-    
-    // Routes Real Estate (Task 1.5)
-    searchResults: searchResultRoutes,
-    savedSearches: savedSearchRoutes,
-    searchExecutions: searchExecutionRoutes
-  },
+  // Routes (now a single combined router)
+  routes,
 
   // Validators
   validators: {
