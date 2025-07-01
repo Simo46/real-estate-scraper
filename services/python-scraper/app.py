@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 import structlog
 
 from config.settings import get_settings
+from core.database import database_lifespan_startup, database_lifespan_shutdown
 from api.routes.health import router as health_router
 from api.routes.scraping import router as scraping_router
 from api.routes.monitoring import router as monitoring_router
@@ -64,8 +65,14 @@ async def lifespan(app: FastAPI):
         settings = get_settings()
         logger.info("✅ Configuration loaded successfully")
         
-        # TODO: Initialize database connections
-        # TODO: Initialize Redis connection
+        # Initialize database connections
+        db_success = await database_lifespan_startup()
+        if not db_success:
+            logger.error("❌ Database initialization failed")
+            raise RuntimeError("Failed to initialize database connections")
+        
+        logger.info("✅ Database connections initialized successfully")
+        
         # TODO: Setup background tasks/workers
         
         logger.info("✅ Python Scraper Service started successfully")
@@ -79,8 +86,10 @@ async def lifespan(app: FastAPI):
         # Shutdown procedures
         logger.info("🛑 Shutting down Python Scraper Service...")
         
-        # TODO: Close database connections
-        # TODO: Close Redis connection
+        # Close database connections
+        await database_lifespan_shutdown()
+        logger.info("✅ Database connections closed")
+        
         # TODO: Clean up background tasks
         
         logger.info("✅ Python Scraper Service shut down successfully")

@@ -14,6 +14,11 @@ from fastapi import APIRouter, Response, status, HTTPException, Request
 from pydantic import BaseModel
 
 from config.settings import get_settings
+from core.database import (
+    check_database_health,
+    get_database_statistics,
+    get_database_manager
+)
 from api.models import (
     APIResponse, 
     HealthCheckResponse, 
@@ -139,6 +144,17 @@ async def readiness_check() -> ReadinessResponse:
         all_ready = False
         logger.error("API Gateway dependency check failed", error=str(exc))
     
+    # Check Database Manager health
+    try:
+        db_manager = get_database_manager()
+        db_health = await check_database_health(db_manager)
+        dependencies["database"] = "ready" if db_health else "unhealthy"
+        logger.debug("Database dependency check: %s", dependencies["database"])
+    except Exception as exc:
+        dependencies["database"] = f"error: {str(exc)}"
+        all_ready = False
+        logger.error("Database dependency check failed", error=str(exc))
+    
     if not all_ready:
         logger.warning("Service not ready", dependencies=dependencies)
         raise HTTPException(
@@ -227,3 +243,113 @@ async def metrics() -> Dict[str, Any]:
             "errors_total": 0
         }
     }
+
+
+@router.get("/database")
+async def database_health() -> APIResponse:
+    """
+    Database connections health check endpoint.
+    
+    Checks health of MongoDB and Redis connections.
+    Returns detailed status for each database.
+    
+    Returns:
+        APIResponse: Database health status
+    """
+    
+    try:
+        logger.debug("Database health check requested")
+        
+        health_status = await check_database_health()
+        
+        if health_status.get("status") == "healthy":
+            return success_response(
+                data=health_status,
+                message="All database connections are healthy"
+            )
+        else:
+            logger.warning(f"Database health check failed: {health_status}")
+            return error_response(
+                message="Database connections are unhealthy",
+                error_code="DATABASE_UNHEALTHY",
+                data=health_status
+            )
+            
+    except Exception as e:
+        logger.error(f"Database health check error: {e}")
+        return error_response(
+            message="Database health check failed",
+            error_code="HEALTH_CHECK_ERROR",
+            data={"error": str(e)}
+        )
+
+
+@router.get("/database/stats")
+async def database_statistics() -> APIResponse:
+    """
+    Database statistics endpoint.
+    
+    Provides detailed statistics about database connections,
+    including connection pool status, queue sizes, and performance metrics.
+    
+    Returns:
+        APIResponse: Database statistics
+    """
+    
+    try:
+        logger.debug("Database statistics requested")
+        
+        stats = await get_database_statistics()
+        
+        return success_response(
+            data=stats,
+            message="Database statistics retrieved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Database statistics error: {e}")
+        return error_response(
+            message="Failed to retrieve database statistics",
+            error_code="STATS_ERROR",
+            data={"error": str(e)}
+        )
+
+
+@router.get("/database/reset")
+async def reset_database_connections() -> APIResponse:
+    """
+    Reset database connections endpoint.
+    
+    Forces reconnection to all databases. Use with caution.
+    Intended for debugging and recovery scenarios.
+    
+    Returns:
+        APIResponse: Reset operation result
+    """
+    
+    try:
+        logger.info("Database connection reset requested")
+        
+        manager = get_database_manager()
+        success = await manager.reset_connections()
+        
+        if success:
+            logger.info("Database connections reset successfully")
+            return success_response(
+                data={"reset": True, "timestamp": datetime.utcnow().isoformat()},
+                message="Database connections reset successfully"
+            )
+        else:
+            logger.error("Database connection reset failed")
+            return error_response(
+                message="Database connection reset failed",
+                error_code="RESET_FAILED"
+            )
+            
+    except Exception as e:
+        logger.error(f"Database reset error: {e}")
+        return error_response(
+            message="Database reset operation failed",
+            error_code="RESET_ERROR",
+            data={"error": str(e)}
+        )

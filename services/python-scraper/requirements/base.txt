@@ -6,6 +6,7 @@ pydantic-settings==2.10.1
 
 # Database drivers
 pymongo==4.13.2
+motor==3.7.1  # Async MongoDB driver
 redis==6.2.0
 
 # HTTP client and utilities
