@@ -2,12 +2,11 @@
 Scraping Control API Routes
 
 Provides endpoints for controlling and monitoring scraping operations.
-Handles job creation, status monitoring, and scraping management.
+Handles job creation, status monitoring, and scraping management using the queue system.
 """
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from enum import Enum
 
 import structlog
 from fastapi import APIRouter, HTTPException, Depends, status, Request
@@ -15,378 +14,405 @@ from pydantic import BaseModel, Field
 
 from config.settings import get_settings
 from api.dependencies import get_current_user
+from core.queue.job_manager import get_job_manager
+from core.queue.models import (
+    ScrapingJob, ScrapingTarget, JobStatus, JobPriority, 
+    JobResult, QueueStats
+)
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
 
-class JobStatus(str, Enum):
-    """Scraping job status enumeration."""
-    
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+# Request/Response Models
 
-
-class ScrapingJobRequest(BaseModel):
+class CreateJobRequest(BaseModel):
     """Request model for creating a scraping job."""
     
-    url: str = Field(..., description="URL to scrape")
-    job_type: str = Field(default="immobiliare", description="Type of scraping job")
-    options: Dict[str, Any] = Field(default_factory=dict, description="Job-specific options")
-    priority: int = Field(default=1, description="Job priority (1-10)")
+    title: str = Field(..., description="Human-readable job title")
+    description: Optional[str] = Field(None, description="Job description")
+    site: str = Field(..., description="Target site (e.g., 'immobiliare.it')")
+    url: Optional[str] = Field(None, description="Specific URL to scrape")
+    search_criteria: Dict[str, Any] = Field(default_factory=dict, description="Search parameters")
+    max_pages: int = Field(default=10, ge=1, le=100, description="Maximum pages to scrape")
+    delay_ms: int = Field(default=1000, ge=100, description="Delay between requests in ms")
+    priority: JobPriority = Field(default=JobPriority.NORMAL, description="Job priority")
+    max_retries: int = Field(default=3, ge=0, le=10, description="Maximum retry attempts")
     
     class Config:
         json_schema_extra = {
             "example": {
+                "title": "Scrape Milano Apartments",
+                "description": "Scrape apartment listings in Milano",
+                "site": "immobiliare.it",
                 "url": "https://www.immobiliare.it/vendita-case/milano/",
-                "job_type": "immobiliare",
-                "options": {
-                    "max_pages": 5,
-                    "property_type": "apartment"
+                "search_criteria": {
+                    "property_type": "apartment",
+                    "price_range": "200000-500000"
                 },
-                "priority": 1
+                "max_pages": 5,
+                "delay_ms": 1500,
+                "priority": "normal",
+                "max_retries": 3
             }
         }
 
 
-class ScrapingJobResponse(BaseModel):
-    """Response model for scraping job information."""
+class JobResponse(BaseModel):
+    """Response model for job information."""
     
-    job_id: str
+    id: str
+    title: str
+    description: Optional[str]
     status: JobStatus
-    url: str
-    job_type: str
+    priority: JobPriority
     created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    progress: int = Field(default=0, description="Progress percentage (0-100)")
-    results_count: int = Field(default=0, description="Number of scraped items")
-    error_message: Optional[str] = None
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    progress_percentage: float
+    pages_processed: int
+    items_found: int
+    current_retry: int
+    max_retries: int
+    last_error: Optional[str]
     
     class Config:
-        json_schema_extra = {
-            "example": {
-                "job_id": "job_123456",
-                "status": "running",
-                "url": "https://www.immobiliare.it/vendita-case/milano/",
-                "job_type": "immobiliare",
-                "created_at": "2025-06-30T10:00:00Z",
-                "started_at": "2025-06-30T10:01:00Z",
-                "completed_at": None,
-                "progress": 45,
-                "results_count": 23,
-                "error_message": None
-            }
-        }
+        from_attributes = True
 
 
 class JobListResponse(BaseModel):
-    """Response model for job list."""
+    """Response model for job listing."""
     
-    jobs: List[ScrapingJobResponse]
+    jobs: List[JobResponse]
     total: int
     page: int
-    per_page: int
+    limit: int
+    has_next: bool
+
+
+class JobResultResponse(BaseModel):
+    """Response model for job results."""
+    
+    job_id: str
+    status: JobStatus
+    items_scraped: int
+    pages_processed: int
+    duration_seconds: float
+    success_rate: float
+    error_count: int
+    output_files: List[str]
+    storage_path: Optional[str]
     
     class Config:
-        json_schema_extra = {
-            "example": {
-                "jobs": [],
-                "total": 0,
-                "page": 1,
-                "per_page": 20
-            }
-        }
+        from_attributes = True
 
 
-@router.post("/jobs", response_model=ScrapingJobResponse, status_code=status.HTTP_201_CREATED)
+class QueueStatsResponse(BaseModel):
+    """Response model for queue statistics."""
+    
+    total_jobs: int
+    pending_jobs: int
+    running_jobs: int
+    completed_jobs: int
+    failed_jobs: int
+    success_rate: float
+    queue_size: int
+    active_workers: int
+    last_updated: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# API Endpoints
+
+@router.post("/jobs", response_model=JobResponse)
 async def create_scraping_job(
-    job_request: ScrapingJobRequest,
-    user = Depends(get_current_user)
-) -> ScrapingJobResponse:
+    request: CreateJobRequest,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Create a new scraping job.
     
-    Creates and queues a new scraping job with the specified parameters.
-    The job will be processed asynchronously by the scraping workers.
-    
-    Args:
-        job_request: Job creation parameters
-        user: Current authenticated user
-        
-    Returns:
-        ScrapingJobResponse: Created job information
-        
-    Raises:
-        HTTPException: If job creation fails
+    Creates and enqueues a new scraping job with the specified parameters.
+    The job will be processed by available workers.
     """
-    
-    logger.info(
-        "Creating scraping job",
-        url=job_request.url,
-        job_type=job_request.job_type,
-        user_id=user.get("id")
-    )
-    
     try:
-        # TODO: Implement job creation logic
-        # 1. Validate URL and job type
-        # 2. Create job record in database
-        # 3. Queue job for processing
-        # 4. Return job information
+        job_manager = await get_job_manager()
         
-        # Placeholder implementation
-        job_id = f"job_{int(datetime.utcnow().timestamp())}"
-        
-        job_response = ScrapingJobResponse(
-            job_id=job_id,
-            status=JobStatus.PENDING,
-            url=job_request.url,
-            job_type=job_request.job_type,
-            created_at=datetime.utcnow(),
-            progress=0,
-            results_count=0
+        # Create scraping target
+        target = ScrapingTarget(
+            site=request.site,
+            url=request.url,
+            search_criteria=request.search_criteria,
+            max_pages=request.max_pages,
+            delay_ms=request.delay_ms
         )
         
-        logger.info(
-            "Scraping job created",
-            job_id=job_id,
-            status=job_response.status,
-            user_id=user.get("id")
+        # Create job
+        job = await job_manager.create_job(
+            user_id=user["id"],
+            tenant_id=user["tenant_id"],
+            title=request.title,
+            target=target,
+            description=request.description,
+            priority=request.priority,
+            max_retries=request.max_retries
         )
         
-        return job_response
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create scraping job"
+            )
         
-    except Exception as exc:
-        logger.error(
-            "Failed to create scraping job",
-            error=str(exc),
-            url=job_request.url,
-            user_id=user.get("id"),
-            exc_info=True
-        )
+        logger.info("Scraping job created", job_id=job.id, user_id=user["id"])
+        
+        return JobResponse.from_orm(job)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to create scraping job", error=str(e), user_object=user)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create scraping job"
+            detail="Internal server error while creating job"
         )
 
-
 @router.get("/jobs", response_model=JobListResponse)
-async def list_jobs(
-    page: int = 1,
-    per_page: int = 20,
+async def list_scraping_jobs(
     status_filter: Optional[JobStatus] = None,
-    user = Depends(get_current_user)
-) -> JobListResponse:
+    page: int = 1,
+    limit: int = 20,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     List scraping jobs for the current user.
     
     Returns a paginated list of scraping jobs with optional status filtering.
-    
-    Args:
-        page: Page number (1-based)
-        per_page: Number of items per page
-        status_filter: Optional status filter
-        user: Current authenticated user
-        
-    Returns:
-        JobListResponse: Paginated job list
     """
-    
-    logger.debug(
-        "Listing scraping jobs",
-        page=page,
-        per_page=per_page,
-        status_filter=status_filter,
-        user_id=user.get("id")
-    )
-    
     try:
-        # TODO: Implement job listing logic
-        # 1. Query jobs from database
-        # 2. Apply filtering and pagination
-        # 3. Return formatted response
+        job_manager = await get_job_manager()
         
-        # Placeholder implementation
+        offset = (page - 1) * limit
+        
+        jobs = await job_manager.list_user_jobs(
+            user_id=user["id"],
+            tenant_id=user["tenant_id"],
+            status=status_filter,
+            limit=limit + 1,  # Get one extra to check if there are more
+            offset=offset
+        )
+        
+        has_next = len(jobs) > limit
+        if has_next:
+            jobs = jobs[:-1]  # Remove the extra job
+        
+        job_responses = [JobResponse.from_orm(job) for job in jobs]
+        
         return JobListResponse(
-            jobs=[],
-            total=0,
+            jobs=job_responses,
+            total=len(job_responses),  # Note: This is not the total count across all pages
             page=page,
-            per_page=per_page
+            limit=limit,
+            has_next=has_next
         )
         
-    except Exception as exc:
-        logger.error(
-            "Failed to list jobs",
-            error=str(exc),
-            user_id=user.get("id"),
-            exc_info=True
-        )
+    except Exception as e:
+        logger.error("Failed to list scraping jobs", error=str(e), user_id=user["id"])
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve jobs"
+            detail="Internal server error while listing jobs"
         )
 
 
-@router.get("/jobs/{job_id}", response_model=ScrapingJobResponse)
-async def get_job_status(
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+async def get_scraping_job(
     job_id: str,
-    user = Depends(get_current_user)
-) -> ScrapingJobResponse:
+    user: Dict[str, Any] = Depends(get_current_user)
+):
     """
-    Get status of a specific scraping job.
+    Get details of a specific scraping job.
     
-    Returns detailed information about a scraping job including
-    progress, results count, and any error messages.
-    
-    Args:
-        job_id: Unique job identifier
-        user: Current authenticated user
-        
-    Returns:
-        ScrapingJobResponse: Job status information
-        
-    Raises:
-        HTTPException: If job not found or access denied
+    Returns detailed information about a scraping job, including current status and progress.
     """
-    
-    logger.debug(
-        "Getting job status",
-        job_id=job_id,
-        user_id=user.get("id")
-    )
-    
     try:
-        # TODO: Implement job status retrieval
-        # 1. Query job from database
-        # 2. Verify user ownership
-        # 3. Return job information
+        job_manager = await get_job_manager()
         
-        # Placeholder implementation - simulate job not found
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job not found"
-        )
+        job = await job_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job not found"
+            )
+        
+        # Verify ownership
+        if job.user_id != user["id"] or job.tenant_id != user["tenant_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this job"
+            )
+        
+        return JobResponse.from_orm(job)
         
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
-    except Exception as exc:
-        logger.error(
-            "Failed to get job status",
-            error=str(exc),
-            job_id=job_id,
-            user_id=user.get("id"),
-            exc_info=True
-        )
+    except Exception as e:
+        logger.error("Failed to get scraping job", job_id=job_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve job status"
+            detail="Internal server error while retrieving job"
         )
 
 
-@router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_job(
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_scraping_job(
     job_id: str,
-    user = Depends(get_current_user)
-) -> None:
+    user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Cancel a scraping job.
     
     Cancels a pending or running scraping job. Completed jobs cannot be cancelled.
-    
-    Args:
-        job_id: Unique job identifier
-        user: Current authenticated user
-        
-    Raises:
-        HTTPException: If job not found, access denied, or cannot be cancelled
     """
-    
-    logger.info(
-        "Cancelling scraping job",
-        job_id=job_id,
-        user_id=user.get("id")
-    )
-    
     try:
-        # TODO: Implement job cancellation logic
-        # 1. Query job from database
-        # 2. Verify user ownership
-        # 3. Check if job can be cancelled
-        # 4. Cancel job and update status
+        job_manager = await get_job_manager()
         
-        # Placeholder implementation
-        logger.info(
-            "Scraping job cancelled",
+        success = await job_manager.cancel_job(
             job_id=job_id,
-            user_id=user.get("id")
+            user_id=user["id"],
+            tenant_id=user["tenant_id"]
         )
         
-    except Exception as exc:
-        logger.error(
-            "Failed to cancel job",
-            error=str(exc),
-            job_id=job_id,
-            user_id=user.get("id"),
-            exc_info=True
-        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot cancel job (not found, not owned by user, or not cancellable)"
+            )
+        
+        logger.info("Job cancelled", job_id=job_id, user_id=user["id"])
+        
+        return {"message": "Job cancelled successfully", "job_id": job_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to cancel job", job_id=job_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to cancel job"
+            detail="Internal server error while cancelling job"
         )
 
 
-@router.get("/stats")
-async def get_scraping_stats(
-    user = Depends(get_current_user)
-) -> Dict[str, Any]:
+@router.post("/jobs/{job_id}/retry")
+async def retry_scraping_job(
+    job_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
     """
-    Get scraping statistics for the current user.
+    Retry a failed scraping job.
     
-    Returns aggregated statistics about the user's scraping activity.
-    
-    Args:
-        user: Current authenticated user
-        
-    Returns:
-        Dict[str, Any]: Scraping statistics
+    Retries a failed scraping job if retry attempts are remaining.
     """
-    
-    logger.debug(
-        "Getting scraping stats",
-        user_id=user.get("id")
-    )
-    
     try:
-        # TODO: Implement statistics calculation
-        # 1. Query user's jobs from database
-        # 2. Calculate aggregated statistics
-        # 3. Return formatted response
+        job_manager = await get_job_manager()
         
-        # Placeholder implementation
-        return {
-            "total_jobs": 0,
-            "pending_jobs": 0,
-            "running_jobs": 0,
-            "completed_jobs": 0,
-            "failed_jobs": 0,
-            "total_results": 0,
-            "last_job_at": None
-        }
-        
-    except Exception as exc:
-        logger.error(
-            "Failed to get scraping stats",
-            error=str(exc),
-            user_id=user.get("id"),
-            exc_info=True
+        success = await job_manager.retry_job(
+            job_id=job_id,
+            user_id=user["id"],
+            tenant_id=user["tenant_id"]
         )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot retry job (not found, not owned by user, or not retryable)"
+            )
+        
+        logger.info("Job retry initiated", job_id=job_id, user_id=user["id"])
+        
+        return {"message": "Job retry initiated", "job_id": job_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to retry job", job_id=job_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve statistics"
+            detail="Internal server error while retrying job"
         )
+
+
+@router.get("/jobs/{job_id}/result", response_model=JobResultResponse)
+async def get_job_result(
+    job_id: str,
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Get results of a completed scraping job.
+    
+    Returns detailed results and statistics for a completed job.
+    """
+    try:
+        job_manager = await get_job_manager()
+        
+        # Verify job ownership
+        job = await job_manager.get_job(job_id)
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job not found"
+            )
+        
+        if job.user_id != user["id"] or job.tenant_id != user["tenant_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this job"
+            )
+        
+        # Get job result
+        result = await job_manager.get_job_result(job_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job result not available"
+            )
+        
+        return JobResultResponse.from_orm(result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to get job result", job_id=job_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while retrieving job result"
+        )
+
+
+@router.get("/stats", response_model=QueueStatsResponse)
+async def get_queue_stats(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Get queue statistics and system status.
+    
+    Returns information about job queues, processing statistics, and system health.
+    """
+    try:
+        job_manager = await get_job_manager()
+        
+        stats = await job_manager.get_stats(tenant_id=user["tenant_id"])
+        
+        return QueueStatsResponse.from_orm(stats)
+        
+    except Exception as e:
+        logger.error("Failed to get queue stats", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while retrieving queue statistics"
+        )
+
+
+

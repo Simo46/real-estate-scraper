@@ -87,15 +87,38 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     detail="Invalid or expired token"
                 )
             
+            # DEBUG: Log JWT payload to understand what fields are available
+            logger.info("🔍 DEBUG: JWT payload ricevuto", 
+                       jwt_payload=jwt_payload,
+                       sub_field=jwt_payload.get("sub"),
+                       tenant_id_field=jwt_payload.get("tenant_id"),
+                       payload_keys=list(jwt_payload.keys()) if jwt_payload else "None")
+            
+            # DEBUG: Log JWT payload per vedere il contenuto
+            logger.info("🔍 DEBUG: JWT payload completo", jwt_payload=jwt_payload)
+            
             # For access tokens, we can trust the JWT payload if signature is valid
             # For additional security, we could also call /me endpoint to get fresh user data
             user_info = {
-                "id": jwt_payload.get("sub"),
-                "tenant_id": jwt_payload.get("tenant_id"),
-                "role_id": jwt_payload.get("role_id"),
-                "permissions": jwt_payload.get("permissions", []),
-                "jwt_payload": jwt_payload
+                "id": jwt_payload.get("user_id"),               # ✅ User ID dal campo "user_id" (non "sub")
+                "tenant_id": jwt_payload.get("tenant_id"),       # ✅ Tenant ID
+                "role_id": jwt_payload.get("active_role_id"),    # ✅ Fix: usa "active_role_id" 
+                "role_name": jwt_payload.get("active_role_name"), # ➕ Aggiungi role name
+                "username": jwt_payload.get("username"),         # ➕ Aggiungi username
+                "email": jwt_payload.get("email"),               # ➕ Aggiungi email
+                "name": jwt_payload.get("name"),                 # ➕ Aggiungi name
+                "permissions": jwt_payload.get("permissions", []), # ✅ Permissions (default vuoto)
+                "jwt_payload": jwt_payload                       # ✅ Payload completo per debug
             }
+            
+            # DEBUG: Log user_info estratto
+            logger.info("🔍 DEBUG: User info estratto", user_info=user_info)
+            
+            # DEBUG: Log user_info per verificare mappatura
+            logger.info("🔍 DEBUG: User info creato", 
+                       user_info=user_info,
+                       user_id=user_info.get("id"),
+                       user_id_type=type(user_info.get("id")).__name__)
             
             # Verify tenant ID consistency if provided in headers
             if tenant_id and jwt_payload.get("tenant_id") != tenant_id:
