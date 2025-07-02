@@ -156,8 +156,7 @@ def setup_middleware(app: FastAPI, settings) -> None:
     app.add_middleware(LoggingMiddleware)
     
     # Custom authentication middleware
-    # TODO: Re-enable after debugging middleware order
-    # app.add_middleware(AuthMiddleware)
+    app.add_middleware(AuthMiddleware)
 
 
 def setup_exception_handlers(app: FastAPI) -> None:

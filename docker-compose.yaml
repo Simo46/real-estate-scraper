@@ -183,6 +183,7 @@ services:
       - JWT_VERIFY_URL=http://api-gateway:3000/api/auth/verify
       - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev_refresh_secret}
+      - JWT_PRE_AUTH_SECRET=${JWT_PRE_AUTH_SECRET:-dev_pre_auth_secret}
       
       # ===== SCRAPING CONFIGURATION =====
       - SCRAPER_MAX_CONCURRENT_JOBS=${SCRAPER_MAX_CONCURRENT_JOBS:-5}

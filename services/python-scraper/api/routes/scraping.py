@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, Field
 
 from config.settings import get_settings
-from middleware.auth_middleware import AuthMiddleware
+from api.dependencies import get_current_user
 
 logger = structlog.get_logger(__name__)
 
@@ -101,13 +101,6 @@ class JobListResponse(BaseModel):
                 "per_page": 20
             }
         }
-
-
-# TODO: Replace with proper authentication dependency
-def get_current_user(request: Request):
-    """Get current authenticated user from middleware."""
-    # This will be properly implemented when auth middleware is working
-    return {"id": "user_123", "email": "test@example.com"}
 
 
 @router.post("/jobs", response_model=ScrapingJobResponse, status_code=status.HTTP_201_CREATED)

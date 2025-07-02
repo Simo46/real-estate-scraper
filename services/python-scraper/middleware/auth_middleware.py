@@ -2,16 +2,17 @@
 Authentication Middleware
 
 Handles JWT token validation and authentication for protected endpoints.
-Integrates with the Node.js API Gateway for token verification.
+Integrates with the Node.js API Gateway for token verification and user info retrieval.
 """
 
-import httpx
 import structlog
 from fastapi import Request, Response, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Callable, Optional, Set
 
 from config.settings import get_settings
+from core.integration.auth_service import AuthService
+from core.integration.jwt_validator import JWTValidator
 
 logger = structlog.get_logger(__name__)
 
@@ -47,6 +48,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         """
         super().__init__(app)
         self.settings = get_settings()
+        self.jwt_validator = JWTValidator()
+        self.auth_service = AuthService()
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """
@@ -73,12 +76,37 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     detail="Missing authentication token"
                 )
             
-            # Validate token with API Gateway
-            user_info = await self._validate_token(token)
-            if not user_info:
+            # Get tenant ID from headers (for multi-tenant support)
+            tenant_id = request.headers.get("X-Tenant-ID")
+            
+            # First try local JWT validation for performance
+            jwt_payload = self.jwt_validator.validate_access_token(token)
+            if not jwt_payload:
                 raise HTTPException(
                     status_code=401,
                     detail="Invalid or expired token"
+                )
+            
+            # For access tokens, we can trust the JWT payload if signature is valid
+            # For additional security, we could also call /me endpoint to get fresh user data
+            user_info = {
+                "id": jwt_payload.get("sub"),
+                "tenant_id": jwt_payload.get("tenant_id"),
+                "role_id": jwt_payload.get("role_id"),
+                "permissions": jwt_payload.get("permissions", []),
+                "jwt_payload": jwt_payload
+            }
+            
+            # Verify tenant ID consistency if provided in headers
+            if tenant_id and jwt_payload.get("tenant_id") != tenant_id:
+                logger.warning(
+                    "Tenant ID mismatch between header and JWT",
+                    header_tenant=tenant_id,
+                    jwt_tenant=jwt_payload.get("tenant_id")
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Tenant ID mismatch"
                 )
             
             # Add user information to request state
@@ -88,6 +116,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.debug(
                 "Authentication successful",
                 user_id=user_info.get("id"),
+                tenant_id=user_info.get("tenant_id"),
+                role_id=user_info.get("role_id"),
                 path=request.url.path,
                 method=request.method
             )
@@ -161,56 +191,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return token_cookie
         
         return None
-    
-    async def _validate_token(self, token: str) -> Optional[dict]:
-        """
-        Validate JWT token with API Gateway.
-        
-        Args:
-            token: JWT token to validate
-            
-        Returns:
-            Optional[dict]: User information if token is valid
-        """
-        
-        try:
-            # Make request to API Gateway for token validation
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.post(
-                    self.settings.jwt_verify_url,
-                    headers={
-                        "Authorization": f"Bearer {token}",
-                        "Content-Type": "application/json"
-                    },
-                    json={"token": token}
-                )
-                
-                if response.status_code == 200:
-                    user_data = response.json()
-                    logger.debug(
-                        "Token validation successful",
-                        user_id=user_data.get("id")
-                    )
-                    return user_data
-                else:
-                    logger.warning(
-                        "Token validation failed",
-                        status_code=response.status_code,
-                        response=response.text
-                    )
-                    return None
-                    
-        except httpx.TimeoutException:
-            logger.error("Token validation timeout")
-            return None
-        except Exception as exc:
-            logger.error(
-                "Token validation error",
-                error=str(exc),
-                exc_info=True
-            )
-            return None
-    
+
     def get_current_user(self, request: Request) -> Optional[dict]:
         """
         Get current authenticated user from request state.
@@ -238,3 +219,23 @@ class AuthMiddleware(BaseHTTPMiddleware):
         """
         
         return getattr(request.state, "authenticated", False)
+
+    async def get_fresh_user_info(self, request: Request) -> Optional[dict]:
+        """
+        Get fresh user information from API Gateway.
+        
+        This method can be used when you need the most up-to-date user information
+        rather than relying on JWT payload.
+        
+        Args:
+            request: HTTP request
+            
+        Returns:
+            Optional[dict]: Fresh user information from API Gateway
+        """
+        token = self._extract_token(request)
+        if not token:
+            return None
+        
+        tenant_id = request.headers.get("X-Tenant-ID")
+        return await self.auth_service.get_user_info(token, tenant_id)

@@ -7,11 +7,48 @@ and provides different environment configurations.
 """
 
 import os
+import socket
 from typing import Optional, List, Literal
 from functools import lru_cache
 
 from pydantic import Field, validator, AnyHttpUrl
 from pydantic_settings import BaseSettings
+
+
+def _detect_api_gateway_url() -> str:
+    """
+    Intelligently detect the correct API Gateway URL based on environment.
+    
+    Returns:
+        str: The appropriate API Gateway URL
+    """
+    # Check if we have an explicit environment variable
+    if explicit_url := os.getenv("API_GATEWAY_URL"):
+        return explicit_url
+    
+    # Try to resolve api-gateway hostname (works in Docker)
+    try:
+        socket.gethostbyname("api-gateway")
+        return "http://api-gateway:3000"
+    except socket.gaierror:
+        # We're probably on the host machine, use localhost
+        return "http://localhost:3000"
+
+
+def _detect_jwt_verify_url() -> str:
+    """
+    Intelligently detect the correct JWT verify URL based on environment.
+    
+    Returns:
+        str: The appropriate JWT verify URL
+    """
+    # Check if we have an explicit environment variable
+    if explicit_url := os.getenv("JWT_VERIFY_URL"):
+        return explicit_url
+    
+    # Use the base API Gateway URL + auth endpoint
+    base_url = _detect_api_gateway_url()
+    return f"{base_url}/api/auth/verify"
 
 
 class DatabaseSettings(BaseSettings):
@@ -52,6 +89,7 @@ class DatabaseSettings(BaseSettings):
     class Config:
         env_prefix = "PYTHON_SCRAPER_"
         case_sensitive = False
+        extra = "ignore"
 
 
 class APISettings(BaseSettings):
@@ -59,12 +97,14 @@ class APISettings(BaseSettings):
     
     # Node.js API Gateway Integration
     api_gateway_url: AnyHttpUrl = Field(
-        default="http://api-gateway:3000",
-        description="API Gateway base URL"
+        default_factory=_detect_api_gateway_url,
+        description="API Gateway base URL (auto-detected)",
+        alias="API_GATEWAY_URL"
     )
     jwt_verify_url: AnyHttpUrl = Field(
-        default="http://api-gateway:3000/api/auth/verify",
-        description="JWT token verification endpoint"
+        default_factory=_detect_jwt_verify_url,
+        description="JWT token verification endpoint (auto-detected)",
+        alias="JWT_VERIFY_URL"
     )
     api_timeout: int = Field(
         default=30,
@@ -75,19 +115,32 @@ class APISettings(BaseSettings):
         description="Max API request retries"
     )
     
-    # JWT Configuration
+    # JWT Configuration (matching docker-compose environment variables)
     jwt_algorithm: str = Field(
         default="HS256",
         description="JWT algorithm"
     )
-    jwt_secret_key: Optional[str] = Field(
-        default=None,
-        description="JWT secret key for local validation"
+    jwt_secret_key: str = Field(
+        default="dev_jwt_secret",
+        description="JWT secret key for access token validation",
+        alias="JWT_SECRET"
+    )
+    jwt_refresh_secret_key: str = Field(
+        default="dev_refresh_secret",
+        description="JWT secret key for refresh token validation",
+        alias="JWT_REFRESH_SECRET"
+    )
+    jwt_pre_auth_secret_key: str = Field(
+        default="dev_pre_auth_secret",
+        description="JWT secret key for pre-auth token validation",
+        alias="JWT_PRE_AUTH_SECRET"
     )
 
     class Config:
-        env_prefix = "PYTHON_SCRAPER_"
+        # Remove env_prefix to allow direct environment variable access
         case_sensitive = False
+        # Allow extra fields to prevent validation errors
+        extra = "ignore"
 
 
 class ScrapingSettings(BaseSettings):
@@ -134,6 +187,7 @@ class ScrapingSettings(BaseSettings):
     class Config:
         env_prefix = "SCRAPER_"
         case_sensitive = False
+        extra = "ignore"
 
 
 class ServerSettings(BaseSettings):
@@ -178,6 +232,7 @@ class ServerSettings(BaseSettings):
     class Config:
         env_prefix = "PYTHON_SCRAPER_"
         case_sensitive = False
+        extra = "ignore"
 
 
 class LoggingSettings(BaseSettings):
@@ -217,6 +272,7 @@ class LoggingSettings(BaseSettings):
     class Config:
         env_prefix = "LOG_"
         case_sensitive = False
+        extra = "ignore"
 
 
 class Settings(BaseSettings):
@@ -225,15 +281,18 @@ class Settings(BaseSettings):
     # Environment Configuration
     environment: Literal["development", "staging", "production"] = Field(
         default="development",
-        description="Application environment"
+        description="Application environment",
+        alias="ENVIRONMENT"
     )
     debug: bool = Field(
         default=True,
-        description="Debug mode"
+        description="Debug mode",
+        alias="DEBUG"
     )
     version: str = Field(
         default="1.0.0",
-        description="Application version"
+        description="Application version",
+        alias="APP_VERSION"
     )
     
     # Service Identity
@@ -290,13 +349,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         env_nested_delimiter = "__"
-        
-        # Field customization
-        fields = {
-            "environment": {"env": "ENVIRONMENT"},
-            "debug": {"env": "DEBUG"},
-            "version": {"env": "APP_VERSION"},
-        }
+        extra = "ignore"
 
     def is_development(self) -> bool:
         """Check if running in development mode"""
