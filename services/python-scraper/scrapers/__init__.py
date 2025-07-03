@@ -25,6 +25,9 @@ from .models import (
 )
 from .factory import ScraperFactory, scraper_factory, register_scraper
 
+# Import site-specific scrapers to ensure they are registered
+from .sites import *
+
 __all__ = [
     # Base classes
     'BaseScraper',
