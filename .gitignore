@@ -25,6 +25,10 @@ yarn-error.log*
 # docs files
 docs/00 - mvp_development_plan.md
 docs/00 - real_estate_scraper_specs.md
+docs/delete/*
+docs/10-implementation-todolist.md
+docs/task_da_implementare_successivamente.md
+services/api-gateway/docs/Esempio Funzionamento Autenticazione .md
 
 # Ignore coverage reports
 coverage/
