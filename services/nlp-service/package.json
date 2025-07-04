@@ -1,0 +1,29 @@
+{
+  "name": "nlp-service",
+  "version": "1.0.0",
+  "description": "NLP Service for Real Estate Scraper - FastAPI + spaCy + Ollama integration",
+  "private": true,
+  "scripts": {
+    "test:integration": "node tests/test-nlp-integration.js",
+    "test:health": "node tests/test-nlp-health.js",
+    "test:all": "npm run test:integration",
+    "dev:monitor": "nodemon tests/test-nlp-integration.js"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "colors": "^1.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "keywords": [
+    "nlp",
+    "fastapi",
+    "spacy",
+    "ollama",
+    "real-estate",
+    "integration-tests"
+  ],
+  "author": "Real Estate Scraper Team",
+  "license": "MIT"
+}

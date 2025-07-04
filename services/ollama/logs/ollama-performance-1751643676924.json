@@ -1,0 +1,37 @@
+{
+  "timestamp": "2025-07-04T15:41:16.923Z",
+  "ollama_url": "http://localhost:11434",
+  "latency": {
+    "avg": 5.8,
+    "min": 1,
+    "max": 22,
+    "success": 5,
+    "total": 5
+  },
+  "throughput": {
+    "successful": 10,
+    "total": 10,
+    "duration": 9,
+    "rate": 1111.111111111111
+  },
+  "models": [
+    {
+      "name": "llama3.2:latest",
+      "model": "llama3.2:latest",
+      "modified_at": "2025-07-04T14:52:53.833458567Z",
+      "size": 2019393189,
+      "digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "llama",
+        "families": [
+          "llama"
+        ],
+        "parameter_size": "3.2B",
+        "quantization_level": "Q4_K_M"
+      }
+    }
+  ],
+  "resources": []
+}

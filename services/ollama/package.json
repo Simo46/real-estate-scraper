@@ -1,0 +1,26 @@
+{
+  "name": "ollama-service",
+  "version": "1.0.0",
+  "description": "Ollama service for Real Estate Scraper",
+  "private": true,
+  "scripts": {
+    "test:integration": "node tests/test-ollama-integration.js",
+    "test:integration:complete": "node tests/test-ollama-integration-complete.js",
+    "test:performance": "node tests/ollama-performance-monitor.js",
+    "monitor": "bash tests/ollama-monitor.sh",
+    "test:all": "npm run test:integration && npm run test:performance"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "colors": "^1.4.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "ollama",
+    "integration-tests",
+    "performance",
+    "monitoring"
+  ],
+  "author": "Real Estate Scraper Team",
+  "license": "MIT"
+}
