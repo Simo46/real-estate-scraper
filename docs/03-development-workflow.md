@@ -563,3 +563,128 @@ docker compose up -d
 ---
 
 **Il workflow è progettato per crescere con il team e il progetto, mantenendo semplicità oggi con flessibilità per il futuro. 🚀**
+
+---
+
+## 🤖 AI Services Development Workflow
+
+### Setup Ambiente AI
+
+**Prima configurazione:**
+```bash
+# Installa dipendenze AI
+cd services/nlp-service
+pip install -r requirements.txt
+
+cd ../ollama
+npm install
+
+# Avvia servizi AI
+docker-compose up nlp-service ollama -d
+```
+
+### Testing AI Services
+
+**Test NLP Service:**
+```bash
+cd services/nlp-service
+
+# Test Python
+python tests/test_entity_extraction.py
+python tests/test_health.py
+python tests/debug_entity_extraction.py
+
+# Test JavaScript
+npm run test:health
+npm run test:integration
+```
+
+**Test Ollama Service:**
+```bash
+cd services/ollama
+
+# Test completi
+npm run test:all
+
+# Test specifici
+npm run test:integration
+npm run test:performance
+npm run monitor
+```
+
+**Verifica Health Services:**
+```bash
+# NLP Service
+curl http://localhost:8002/health
+
+# Ollama Service
+curl http://localhost:11434/api/tags
+
+# API Gateway
+curl http://localhost:3000/health
+```
+
+### AI Development Best Practices
+
+**1. Sviluppo Incrementale:**
+```bash
+# Testa singolo servizio
+cd services/nlp-service
+python tests/test_entity_extraction.py
+
+# Testa integrazione
+npm run test:integration
+
+# Testa pipeline completa
+curl -X POST http://localhost:8002/extract-entities \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Cerco casa Milano 2 locali 300k"}'
+```
+
+**2. Performance Monitoring:**
+```bash
+# Monitor Ollama performance
+cd services/ollama
+npm run test:performance
+
+# Check logs
+docker-compose logs nlp-service
+docker-compose logs ollama
+```
+
+**3. Error Debugging:**
+```bash
+# Debug NLP extraction
+cd services/nlp-service
+python tests/debug_entity_extraction.py
+
+# Monitor system resources
+cd services/ollama
+npm run monitor
+```
+
+### Git Workflow per AI Features
+
+**Feature AI specifiche:**
+```bash
+# Crea feature per AI
+git flow feature start nlp-conditional-logic
+
+# Sviluppa in services/nlp-service/
+# Test localmente
+cd services/nlp-service
+python tests/test_new_feature.py
+
+# Commit con testing
+git add services/nlp-service/
+git commit -m "feat(nlp): implementa pattern matching condizionale
+
+- Aggiunti pattern per logiche se-allora
+- Test coverage >90%
+- Performance <3s per query"
+
+# Finalizza feature
+git flow feature finish nlp-conditional-logic
+```
+
+---
