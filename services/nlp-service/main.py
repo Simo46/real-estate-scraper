@@ -32,11 +32,26 @@ from core import (
 # Import exception types
 from core.ollama_client import OllamaModelError, OllamaConnectionError
 
+# Import new components for Entity Extraction
+try:
+    from controllers.entity_controller import entity_router
+    from services.entity_service import entity_service
+    ENTITY_EXTRACTION_AVAILABLE = True
+    fallback_router = None
+except ImportError as e:
+    print(f"Entity extraction components not available: {e}")
+    ENTITY_EXTRACTION_AVAILABLE = False
+    entity_router = None
+    try:
+        from controllers.fallback_controller import fallback_router
+    except ImportError:
+        fallback_router = None
+
 # Configurazione da environment variables
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
 SERVICE_PORT = int(os.getenv("NLP_SERVICE_PORT", "8002"))
 SERVICE_HOST = os.getenv("NLP_SERVICE_HOST", "0.0.0.0")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")  # Cambiato a DEBUG per vedere i log
 
 # Inizializza sistemi di logging e monitoring
 logger = get_logger()
@@ -67,6 +82,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+if ENTITY_EXTRACTION_AVAILABLE and entity_router:
+    app.include_router(entity_router, prefix="/api/v1")
+elif fallback_router:
+    app.include_router(fallback_router, prefix="/api/v1")
 
 # Middleware per monitoring delle richieste
 @app.middleware("http")

@@ -44,6 +44,10 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --upgrade pip setuptools wheel && \
     pip install -r /tmp/requirements.txt 
 
+# Scarica modelli spaCy necessari
+RUN python -m spacy download it_core_news_sm || echo "Modello it_core_news_sm non disponibile, verrà scaricato al runtime"
+RUN python -m spacy download en_core_web_sm || echo "Modello en_core_web_sm non disponibile, verrà scaricato al runtime"
+
 # Copia codice applicazione
 COPY --chown=nlp_user:nlp_user . /app/
 

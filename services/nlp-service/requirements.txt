@@ -11,6 +11,10 @@ requests==2.32.4
 # Ollama Python client
 ollama==0.5.1
 
+# spaCy per NLP e Named Entity Recognition
+spacy==3.8.7
+spacy-transformers==1.3.9
+
 # Utilities base
 python-dotenv==1.1.1
 python-multipart==0.0.20

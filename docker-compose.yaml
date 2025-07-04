@@ -271,6 +271,12 @@ services:
       - NLP_SPACY_MODEL_IT=it_core_news_sm
       - NLP_SPACY_MODEL_EN=en_core_web_sm
       
+      # ===== ENTITY EXTRACTION SETTINGS =====
+      - NLP_ENTITY_CONFIDENCE_THRESHOLD=0.5
+      - NLP_ENTITY_NORMALIZATION=true
+      - NLP_ENTITY_CUSTOM_PATTERNS=true
+      - NLP_ENTITY_MAX_TEXT_LENGTH=5000
+      
     depends_on:
       ollama:
         condition: service_healthy
