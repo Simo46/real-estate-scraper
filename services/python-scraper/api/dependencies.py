@@ -178,3 +178,93 @@ async def get_fresh_user_info(request: Request) -> Dict:
         return user
     
     return fresh_info
+
+
+def get_tenant_context(user: Dict = Depends(get_current_user)):
+    """
+    Get tenant context from authenticated user.
+    
+    Args:
+        user: Authenticated user from get_current_user
+        
+    Returns:
+        Dict: Tenant context information
+        
+    Raises:
+        HTTPException: If tenant information is missing
+    """
+    tenant_id = user.get("tenant_id")
+    user_id = user.get("user_id")
+    
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant ID required for this operation"
+        )
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="User ID required for this operation"
+        )
+    
+    return {
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "user": user
+    }
+
+
+def validate_tenant_resource_access(resource_tenant_id: str):
+    """
+    Create a dependency that validates tenant access to a specific resource.
+    
+    Args:
+        resource_tenant_id: Tenant ID of the resource
+        
+    Returns:
+        Dependency function that validates access
+    """
+    def _validate_access(tenant_context: Dict = Depends(get_tenant_context)) -> Dict:
+        requesting_tenant_id = tenant_context["tenant_id"]
+        
+        if requesting_tenant_id != resource_tenant_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied: resource belongs to different tenant"
+            )
+        
+        return tenant_context
+    
+    return _validate_access
+
+
+def require_tenant_admin(user: Dict = Depends(get_current_user)) -> Dict:
+    """
+    Require tenant admin privileges.
+    
+    Args:
+        user: Authenticated user
+        
+    Returns:
+        Dict: User information if admin
+        
+    Raises:
+        HTTPException: If user is not tenant admin
+    """
+    user_roles = user.get("roles", [])
+    tenant_id = user.get("tenant_id")
+    
+    if "tenant_admin" not in user_roles and "admin" not in user_roles:
+        raise HTTPException(
+            status_code=403,
+            detail="Tenant admin privileges required"
+        )
+    
+    if not tenant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant ID required for admin operations"
+        )
+    
+    return user

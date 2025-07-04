@@ -23,6 +23,7 @@ from core.database import database_lifespan_startup, database_lifespan_shutdown
 from api.routes.health import router as health_router
 from api.routes.scraping import router as scraping_router
 from api.routes.monitoring import router as monitoring_router
+from api.routes.multitenant_scraping import router as multitenant_scraping_router
 from middleware.logging_middleware import LoggingMiddleware
 from middleware.auth_middleware import AuthMiddleware
 from middleware.request_id_middleware import RequestIDMiddleware
@@ -256,6 +257,13 @@ def setup_routes(app: FastAPI) -> None:
         scraping_router,
         prefix="/api/scraping",
         tags=["scraping"]
+    )
+    
+    # Include enhanced multi-tenant scraping routes
+    app.include_router(
+        multitenant_scraping_router,
+        prefix="/api/scraping",
+        tags=["multi-tenant-scraping"]
     )
     
     # Include monitoring routes
