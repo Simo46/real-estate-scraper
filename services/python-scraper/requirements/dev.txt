@@ -1,0 +1,23 @@
+# Development and testing requirements
+pytest==8.4.1
+pytest-asyncio==1.0.0
+pytest-cov==6.2.1
+pytest-mock==3.14.1
+
+# Code quality and formatting
+black==25.1.0
+isort==6.0.1
+flake8==7.3.0
+mypy==1.16.1
+
+# Development tools
+ipdb==0.13.13
+ipython==9.3.0
+pre-commit==4.2.0
+
+# Documentation
+mkdocs==1.6.1
+mkdocs-material==9.6.14
+
+# Load testing
+locust==2.37.11
