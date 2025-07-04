@@ -1,0 +1,59 @@
+# Core FastAPI dependencies
+fastapi==0.115.14
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+
+# HTTP client per Ollama
+httpx==0.28.1
+requests==2.32.4
+
+# Ollama Python client
+ollama==0.5.1
+
+# Utilities base
+python-dotenv==1.1.1
+python-multipart==0.0.20
+
+# Logging e monitoring
+structlog==25.4.0
+
+# Testing dependencies
+pytest==8.4.1
+pytest-asyncio==1.0.0
+
+# Per ora installiamo solo le dipendenze core
+# spaCy verrà installato separatamente dopo che il container base funziona
+
+# Preprocessing e utilities
+pandas==2.3.0
+numpy==2.3.1
+
+# Monitoring e logging
+prometheus-client==0.22.1
+
+# Caching
+redis==6.2.0
+
+# Testing (per sviluppo)
+pytest-cov==6.2.1
+httpx[testing]==0.28.1
+
+# Development tools
+black==25.1.0
+flake8==7.3.0
+isort==6.0.1
+mypy==1.16.1
+
+# Security
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+
+# Date/time utilities
+python-dateutil==2.9.0.post0
+
+# JSON handling
+orjson==3.10.18
+
+# Async utilities
+asyncio-throttle==1.0.2

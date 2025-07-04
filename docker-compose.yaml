@@ -124,6 +124,11 @@ services:
       - OLLAMA_PORT=${OLLAMA_PORT_INTERNAL:-11434}
       - OLLAMA_URL=http://${OLLAMA_HOST:-ollama}:${OLLAMA_PORT_INTERNAL:-11434}
       
+      # ===== NLP SERVICE INTEGRATION =====
+      - NLP_SERVICE_HOST=${NLP_SERVICE_HOST:-nlp-service}
+      - NLP_SERVICE_PORT=${NLP_SERVICE_PORT_INTERNAL:-8002}
+      - NLP_SERVICE_URL=http://${NLP_SERVICE_HOST:-nlp-service}:${NLP_SERVICE_PORT_INTERNAL:-8002}
+      
       # ===== FEATURE FLAGS =====
       - ENABLE_REGISTRATION=${ENABLE_REGISTRATION:-true}
       - ENABLE_EMAIL_VERIFICATION=${ENABLE_EMAIL_VERIFICATION:-false}
@@ -147,6 +152,8 @@ services:
       mongodb:
         condition: service_healthy
       ollama:
+        condition: service_healthy
+      nlp-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -224,6 +231,55 @@ services:
     volumes:
       # Hot reload per development
       - ./services/python-scraper:/app
+      - /app/__pycache__  # Prevents Python cache override
+
+  nlp-service:
+    build:
+      context: ./services/nlp-service
+    ports:
+      - "${NLP_SERVICE_PORT:-8002}:8002"
+    environment:
+      # ===== DEVELOPMENT SETTINGS =====
+      - NLP_SERVICE_HOST=0.0.0.0
+      - NLP_SERVICE_PORT=8002
+      - NLP_LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - NLP_DEBUG=${NODE_ENV:-development}
+      
+      # ===== OLLAMA INTEGRATION =====
+      - NLP_OLLAMA_URL=http://ollama:11434
+      - NLP_OLLAMA_TIMEOUT=30
+      - NLP_OLLAMA_RETRY_ATTEMPTS=3
+      - NLP_DEFAULT_MODEL=${OLLAMA_MODELS:-llama3.2:3b}
+      
+      # ===== REDIS CACHING =====
+      - NLP_REDIS_HOST=redis
+      - NLP_REDIS_PORT=6379
+      - NLP_REDIS_DB=1
+      
+      # ===== PERFORMANCE SETTINGS =====
+      - NLP_MAX_QUERY_LENGTH=2000
+      - NLP_MAX_CONCURRENT_REQUESTS=10
+      - NLP_REQUEST_TIMEOUT=30
+      
+      # ===== SPACY MODELS =====
+      - NLP_SPACY_MODEL_IT=it_core_news_sm
+      - NLP_SPACY_MODEL_EN=en_core_web_sm
+      
+    depends_on:
+      ollama:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    volumes:
+      # Hot reload per development
+      - ./services/nlp-service:/app
       - /app/__pycache__  # Prevents Python cache override
 
 volumes:
