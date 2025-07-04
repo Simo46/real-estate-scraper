@@ -5,7 +5,7 @@ services:
       POSTGRES_DB: ${DB_DATABASE:-real_estate}
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
-      # Ottimizzazioni performance per dev
+      # Ottimizzazioni perf per dev
       POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -53,8 +53,9 @@ services:
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
 
   ollama:
-    build: 
-      context: ./services/nlp-service
+    build:
+      context: ./services/ollama
+      dockerfile: Dockerfile
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -74,6 +75,11 @@ services:
           memory: ${OLLAMA_MEMORY_LIMIT:-8G}
         reservations:
           memory: ${OLLAMA_MEMORY_RESERVATION:-4G}
+    # Fix DNS issues
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/"]
       interval: 30s
@@ -246,10 +252,10 @@ services:
       - NLP_DEBUG=${NODE_ENV:-development}
       
       # ===== OLLAMA INTEGRATION =====
-      - NLP_OLLAMA_URL=http://ollama:11434
-      - NLP_OLLAMA_TIMEOUT=30
-      - NLP_OLLAMA_RETRY_ATTEMPTS=3
-      - NLP_DEFAULT_MODEL=${OLLAMA_MODELS:-llama3.2:3b}
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_TIMEOUT=30
+      - OLLAMA_RETRY_ATTEMPTS=3
+      - OLLAMA_DEFAULT_MODEL=llama3.2:latest
       
       # ===== REDIS CACHING =====
       - NLP_REDIS_HOST=redis

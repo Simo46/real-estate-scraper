@@ -16,6 +16,16 @@ const roleRoutes = require('./roleRoutes');
 console.log('[api/routes] - Loading userAbilityRoutes...');
 const userAbilityRoutes = require('./userAbilityRoutes');
 
+// NLP Service Routes
+console.log('[api/routes] - Loading nlpRoutes...');
+let nlpRoutes = null;
+try {
+  nlpRoutes = require('./nlpRoutes');
+  console.log('[api/routes] - ✅ nlpRoutes loaded');
+} catch (error) {
+  console.error('[api/routes] - ❌ nlpRoutes failed:', error.message);
+}
+
 // Real Estate Routes - with error handling
 console.log('[api/routes] - Loading searchResultRoutes...');
 let searchResultRoutes = null;
@@ -60,6 +70,15 @@ console.log('[DEBUG] ✅ /roles registered OK');
 console.log('[DEBUG] Registering /user-abilities...');
 router.use('/user-abilities', userAbilityRoutes);
 console.log('[DEBUG] ✅ /user-abilities registered OK');
+
+// NLP Service Routes
+if (nlpRoutes) {
+  console.log('[DEBUG] Registering /nlp...');
+  router.use('/nlp', nlpRoutes);
+  console.log('[DEBUG] ✅ /nlp registered OK');
+} else {
+  console.log('[DEBUG] ⚠️ /nlp skipped (not loaded)');
+}
 
 // Real Estate Routes - only if loaded successfully
 if (searchResultRoutes) {
@@ -118,6 +137,7 @@ router.get('/', (req, res) => {
       '/users', 
       '/roles',
       '/user-abilities',
+      nlpRoutes ? '/nlp' : null,
       searchResultRoutes ? '/search-results' : null,
       savedSearchRoutes ? '/saved-searches' : null,
       searchExecutionRoutes ? '/search-executions' : null

@@ -8,6 +8,37 @@ const tenantMiddleware = async (req, res, next) => {
     // Log dettagliato per debugging
     logger.debug(`Ricevuta richiesta: ${req.method} ${req.url}`);
     
+    // Rotte NLP usano il tenant di sistema
+    if (req.url.startsWith('/api/nlp/')) {
+      logger.debug('Rotta NLP: usando tenant di sistema');
+      
+      try {
+        const systemTenant = await models.Tenant.findOne({
+          where: { code: 'SYSTEM', active: true }
+        });
+        
+        if (systemTenant) {
+          logger.debug(`Tenant di sistema trovato: ${systemTenant.name} (${systemTenant.id})`);
+          req.tenantId = systemTenant.id;
+          req.tenant = systemTenant;
+          req.sequelizeOptions = { tenantId: systemTenant.id };
+          return next();
+        } else {
+          logger.error('Tenant di sistema non trovato per NLP service');
+          return res.status(503).json({
+            error: 'Service Configuration Error',
+            message: 'Tenant di sistema non configurato per il servizio NLP'
+          });
+        }
+      } catch (error) {
+        logger.error('Errore durante la ricerca del tenant di sistema per NLP:', error);
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Errore durante la configurazione del tenant per il servizio NLP'
+        });
+      }
+    }
+    
     // Per test e sviluppo, accetta un header X-Tenant-ID
     const tenantIdFromHeader = req.get('X-Tenant-ID');
     

@@ -1,0 +1,4 @@
+# Log directory for NLP Service
+# This directory is used for storing log files
+*.log
+*.log.*
